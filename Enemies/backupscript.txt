@@ -1,0 +1,88 @@
+#include "CubeWalker.h"
+#include "raymath.h"
+#include <cmath>
+#include "rlgl.h"
+
+CubeWalker::CubeWalker(int tierInput, Vector3 startPos) : BaseEnemy(tierInput, startPos) {
+    tier = tierInput;
+    position = startPos;
+    velocity = {0, 0, 0};
+    active = true;
+    canSplitStatus = false; // Default: Tidak membelah
+
+    // --- LOGIC RNG VARIAN (KHUSUS TIER 1) ---
+    if (tier == 1) {
+        int roll = GetRandomValue(0, 100);
+
+        if (roll < 30) { // VARIAN: SPEEDY (Kecil & Gesit)
+            hp = 10;
+            speed = 7.5f;
+            radius = 0.8f;
+            scaleSize = 0.7f;
+            bodyColor = LIME;
+            xpReward = 5; 
+        } 
+        else if (roll > 80) { // VARIAN: TANKER (Gede & Bisa Mbelah)
+            hp = 70;
+            speed = 3.0f;
+            radius = 1.6f;
+            scaleSize = 1.4f;
+            bodyColor = DARKGRAY;
+            xpReward = 45;
+            canSplitStatus = true; // AKTIFKAN SPLITTING
+        } 
+        else { // VARIAN: NORMAL (Merah Lu yang Dulu)
+            hp = 20;
+            speed = 5.0f;
+            radius = 1.2f;
+            scaleSize = 1.0f;
+            bodyColor = RED;
+            xpReward = 15;
+        }
+    } 
+    else {
+        // Stats untuk Tier 2 (Blue) atau Tier 3 (Gold)
+        // Bisa lu tambahin RNG lagi di sini kalau mau
+        hp = (tier == 2) ? 100 : 500;
+        speed = (tier == 2) ? 4.0f : 2.5f;
+        radius = (tier == 2) ? 2.0f : 4.0f;
+        scaleSize = radius;
+        bodyColor = (tier == 2) ? BLUE : GOLD;
+        xpReward = (tier == 2) ? 100 : 1000;
+    }
+}
+
+void CubeWalker::Update(float dt, Vector3 playerPos) {
+    Vector3 dir = Vector3Subtract(playerPos, position);
+    dir.y = 0;
+    dir = Vector3Normalize(dir);
+    position = Vector3Add(position, Vector3Scale(dir, speed * dt));
+}
+
+void CubeWalker::Draw(Model& slimeModel, Model& cubeModel, Model& magnetModel, Model& shadowPlane, Camera3D cam, Vector3 playerPos) {
+    // 1. Hitung Rotasi & Animasi
+    float dx = playerPos.x - position.x;
+    float dz = playerPos.z - position.z;
+    float rotationY = atan2f(dx, dz) * RAD2DEG;
+    float wobble = sinf(GetTime() * 15.0f) * 8.0f;
+
+    // 2. Transformasi
+    Vector3 currentScale = { scaleSize, scaleSize * 0.9f, scaleSize };
+    Vector3 drawPos = position;
+    drawPos.y += currentScale.y * 0.5f;
+
+    // 3. GAMBAR BAYANGAN
+    float shadowScale = radius * 2.2f;
+    rlDisableDepthMask();
+    DrawModelEx(shadowPlane, 
+                (Vector3){position.x, 0.02f, position.z}, 
+                (Vector3){0, 1, 0}, 0.0f, 
+                (Vector3){shadowScale, 1.0f, shadowScale}, 
+                ColorAlpha(BLACK, 0.4f));
+    rlEnableDepthMask();
+
+    // 4. GAMBAR CUBE DENGAN WARNA DINAMIS
+    // Gunakan bodyColor hasil RNG di constructor
+    cubeModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].color = bodyColor;
+    DrawModelEx(cubeModel, drawPos, (Vector3){0, 1, 0}, rotationY + wobble, currentScale, WHITE);
+}
