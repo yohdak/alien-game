@@ -3,12 +3,12 @@
 #include <vector>
 #include <string>
 
-// Definisi Warna Map (Sesuaikan dengan Paint Anda)
-#define COLOR_WALL      WHITE        // 255, 255, 255 (Tembok Mati)
+// Definisi Warna Map
+#define COLOR_WALL      WHITE        // 255, 255, 255 (Tembok)
 #define COLOR_BREAKABLE RED          // 255, 0, 0     (Tembok Hancur)
 #define COLOR_WATER     BLUE         // 0, 0, 255     (Air/Slow)
 #define COLOR_PORTAL    GREEN        // 0, 255, 0     (Pindah Map)
-#define COLOR_GROUND    GRAY         // 128, 128, 128 (Jalanan - Opsional)
+// Abu-abu (128,128,128) dipakai untuk lantai (Ground Shader)
 
 struct DestructibleWall {
     Vector3 position;
@@ -18,34 +18,39 @@ struct DestructibleWall {
 
 struct Portal {
     Vector3 position;
-    std::string targetMap; // Nama file map selanjutnya
+    std::string targetMap; 
     BoundingBox box;
 };
 
 class LevelManager {
 public:
     LevelManager();
+    
+    // 🔥 FUNGSI BARU INI WAJIB ADA
+    void SetGroundShader(Shader shader); 
+    
     void LoadLevelFromImage(const char* imagePath);
-    void Update(float dt, Vector3& playerPos, Vector3& playerVel); // Handle physics air & portal
+    void Update(float dt, Vector3& playerPos, Vector3& playerVel);
     void Draw();
 
-    // Collision System
     bool CheckWallCollision(Vector3 pos, float radius);
-    bool CheckBreakableCollision(Vector3 pos, float radius, float damage); // Return true jika hancur
+    bool CheckBreakableCollision(Vector3 pos, float radius, float damage);
 
 private:
     int mMapWidth;
     int mMapHeight;
-    float mTileSize; // Ukuran 1 pixel = berapa unit dunia (misal 2.0f)
+    float mTileSize;
     
-    // Grid Data (0 = Kosong, 1 = Wall, 2 = Water)
+    // 0=Kosong, 1=Wall, 2=Water, 3=Ground
     std::vector<int> mCollisionGrid; 
     
-    // Objek Dinamis
     std::vector<DestructibleWall> mBreakables;
     std::vector<Portal> mPortals;
     
-    // Model untuk visual
     Model mWallModel;     
     Model mBreakableModel;
+    Model mGroundModel; // 🔥 Model untuk lantai
+    
+    Shader mRefShader;  // 🔥 Simpan referensi shader
+    bool mShaderSet;
 };
