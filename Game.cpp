@@ -280,49 +280,20 @@ void Game::Update(float dt) {
     // 5. 🔥 GAMEPLAY LOGIC (Hanya jalan saat State == PLAYING)
     // ==============================================================================
 
-    // --- A. PLAYER MOVEMENT & MAP COLLISION ---
-    Vector3 oldPos = mPlayer.GetPosition();
-    mPlayer.Update(dt);
-    Vector3 curPos = mPlayer.GetPosition();
+   // --- A. PLAYER MOVEMENT & MAP COLLISION ---
     
-    // Collision dengan Map (Retroactive Sliding)
-    Model mapCol = mAssets.GetModel("ground");
-    bool isColliding = false;
-    float playerRadius = 0.5f;
+    // 1. Update Level Physics (Air/Portal)
+    // Pastikan mVelocity public di Player.h atau buat Getter/Setter
+    // Jika error, sementara comment dulu baris ini sampai Player.h disesuaikan
+    // mLevelManager.Update(dt, mPlayer.mPosition, mPlayer.mVelocity); 
 
-    // Cek Tabrakan Awal
-    for (int i = 0; i < mapCol.meshCount; i++) {
-        BoundingBox box = GetMeshBoundingBox(mapCol.meshes[i]);
-        if (box.max.y < 1.0f) continue; // Skip Lantai
-        if (CheckCollisionBoxSphere(box, curPos, playerRadius)) {
-            isColliding = true; break;
-        }
-    }
-
-    // Jika nabrak, lakukan Sliding
-    if (isColliding) {
-        // Coba Slide Z
-        Vector3 slideZ = { oldPos.x, curPos.y, curPos.z };
-        bool hitZ = false;
-        for (int i = 0; i < mapCol.meshCount; i++) {
-            BoundingBox box = GetMeshBoundingBox(mapCol.meshes[i]);
-            if (box.max.y < 1.0f) continue;
-            if (CheckCollisionBoxSphere(box, slideZ, playerRadius)) { hitZ = true; break; }
-        }
-
-        if (!hitZ) mPlayer.SetPosition(slideZ); 
-        else {
-            // Coba Slide X
-            Vector3 slideX = { curPos.x, curPos.y, oldPos.z };
-            bool hitX = false;
-            for (int i = 0; i < mapCol.meshCount; i++) {
-                BoundingBox box = GetMeshBoundingBox(mapCol.meshes[i]);
-                if (box.max.y < 1.0f) continue;
-                if (CheckCollisionBoxSphere(box, slideX, playerRadius)) { hitX = true; break; }
-            }
-            if (!hitX) mPlayer.SetPosition(slideX);
-            else mPlayer.SetPosition(oldPos); // Mentok
-        }
+    Vector3 oldPos = mPlayer.GetPosition();
+    mPlayer.Update(dt); // Player gerak dulu
+    
+    // 2. Cek Tabrakan Tembok (LevelManager)
+    // Logika sliding sederhana: kalau nabrak, kembalikan ke posisi sebelumnya
+    if (mLevelManager.CheckWallCollision(mPlayer.GetPosition(), 0.5f)) {
+        mPlayer.SetPosition(oldPos); 
     }
 
     // --- B. MANAGERS UPDATE ---
@@ -489,6 +460,24 @@ void Game::Update(float dt) {
     for (auto& b : projectiles) {
         if (!b.active) continue;
         
+        // [BARU] 1. Cek Tabrakan dengan Tembok Merah (Breakable Wall)
+        // Kita cek tembok dulu sebelum musuh.
+        // Parameter: Posisi Peluru, Radius Peluru, Damage ke Tembok (misal 10)
+        if (mLevelManager.CheckBreakableCollision(b.position, b.radius, 10.0f)) {
+            b.active = false; // Peluru hancur
+            mParticles.SpawnExplosion(b.position, RED, 15); // Efek pecahan tembok
+            
+            // Efek Suara (Opsional, pakai sound crack jika ada)
+            if (mAssets.IsSoundReady("crack")) {
+                 Sound& sfx = mAssets.GetSound("crack");
+                 SetSoundPitch(sfx, GetRandomFloat(0.7f, 0.9f)); // Suara lebih berat buat tembok
+                 PlaySound(sfx);
+            }
+            
+            continue; // Lanjut ke peluru berikutnya, jangan cek musuh lagi
+        }
+
+        // [LAMA] 2. Cek Tabrakan dengan Musuh
         for (auto& e : mEnemies) {
             if (!e->IsActive()) continue;
 
@@ -517,18 +506,15 @@ void Game::Update(float dt) {
 
                     for(int i = 0; i < orbCount; i++) {
                         Vector3 spawnPos = e->GetPosition();
-                        spawnPos.y += 0.5f; // Muncul sedikit di atas tanah
+                        spawnPos.y += 0.5f; 
                         
-                        int orbValue = xpPerOrb + (i == 0 ? remainder : 0);
-                        
-                        // Beri kecepatan random (Muncrat ke atas & samping)
                         Vector3 randomVel = {
-                            GetRandomFloat(-6.0f, 6.0f),  // X nyebar
-                            GetRandomFloat(8.0f, 15.0f),  // Y lompat ke atas
-                            GetRandomFloat(-6.0f, 6.0f)   // Z nyebar
+                            GetRandomFloat(-6.0f, 6.0f),
+                            GetRandomFloat(8.0f, 15.0f),
+                            GetRandomFloat(-6.0f, 6.0f)
                         };
 
-                        mGems.push_back({spawnPos, (float)orbValue, true, randomVel});
+                        mGems.push_back({spawnPos, (float)xpPerOrb + (i==0?remainder:0), true, randomVel});
                     }
 
                     // Loot Drop
@@ -546,7 +532,7 @@ void Game::Update(float dt) {
                         }
                     }
                 }
-                break; 
+                break; // Break loop musuh (peluru cuma kena 1 musuh)
             }
         }
     }

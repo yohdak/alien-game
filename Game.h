@@ -14,6 +14,7 @@
 #include "Managers/AssetManager.h"
 #include "Managers/UIManager.h"
 #include "Managers/MenuManager.h" // ✅ BARU: Tambahkan ini
+#include "Managers/LevelManager.h"
 
 // ✅ ENEMY INCLUDES
 #include "Enemies/BaseEnemy.h"
@@ -69,6 +70,7 @@ private:
     Texture2D GenerateShadowTexture();
 
 private:
+
     bool mGameLoaded;
     int mLoadingFrameDelay;
     void LoadGameplayContent();
@@ -100,6 +102,7 @@ private:
     ItemManager mItemManager;
     ParticleSystem mParticles;
     UIManager mUI;
+    LevelManager mLevelManager;
 
     // --- RENDERING ---
     Shader mGroundShader;
