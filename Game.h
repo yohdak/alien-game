@@ -12,18 +12,17 @@
 #include "Systems/ItemManager.h"
 #include "Managers/ParticleSystem.h"
 #include "Managers/AssetManager.h"
-#include "Enemies/BaseEnemy.h"
-
+#include "Managers/UIManager.h"
+#include "Managers/MenuManager.h" // ✅ BARU: Tambahkan ini
 
 // ✅ ENEMY INCLUDES
+#include "Enemies/BaseEnemy.h"
 #include "Enemies/CubeWalker.h"
 #include "Enemies/SlimeJumper.h"
-#include "Enemies/ShooterEnemy.h"     // ✅ BARU
-#include "Enemies/ChargerEnemy.h"     // ✅ BARU
-#include "Enemies/ExploderEnemy.h"    // ✅ BARU
-#include "Enemies/BossEnemy.h"        // ✅ BARU
-
-#include "Managers/UIManager.h"
+#include "Enemies/ShooterEnemy.h"
+#include "Enemies/ChargerEnemy.h"
+#include "Enemies/ExploderEnemy.h"
+#include "Enemies/BossEnemy.h"
 
 // --- ENUMS & STRUCTS ---
 
@@ -31,20 +30,15 @@ enum class GameState {
     SPLASH,
     LOADING,
     MAIN_MENU,
-    SETTINGS,   // <--- Baru
+    SETTINGS,
     CREDITS,
     PLAYING,
     GAME_OVER,
     PAUSED,
-    VICTORY       // ✅ BARU (Wave 25 clear)
+    VICTORY
 };
 
-enum class MenuOption {
-    START = 0,
-    SETTINGS,
-    CREDITS,
-    EXIT
-};
+// ❌ HAPUS: enum class MenuOption (Sudah diganti MenuManager)
 
 struct XPGem {
     Vector3 position;
@@ -68,18 +62,16 @@ private:
     void Draw();
     void ResetGame();
 
-    // ✅ SPAWN METHODS (UPDATED)
+    // ✅ SPAWN METHODS
     void SpawnEnemy(EnemySpawnEntry entry, Vector3 pos = {0, 0, 0});
     void SpawnBoss(int waveNumber, Vector3 pos);
     
     Texture2D GenerateShadowTexture();
 
 private:
-
-    bool mGameLoaded;      // Penanda apakah aset gameplay sudah diload
-    int mLoadingFrameDelay; // Hack kecil untuk memastikan UI Loading muncul sebelum freeze loading
+    bool mGameLoaded;
+    int mLoadingFrameDelay;
     void LoadGameplayContent();
-
 
     float mSplashTimer;
     Texture2D mSplashLogo;
@@ -88,9 +80,11 @@ private:
     Texture2D mMenuBg;
     Texture2D mLoadingBg;
     
-    MenuOption mCurrentMenuOption; // Pilihan menu saat ini (0-3)
+    // ✅ GANTI: Variabel Menu lama diganti dengan Class Manager
+    // MenuOption mCurrentMenuOption; <- Hapus ini
+    MenuManager mMenuManager;      // <- Ganti ini
+    
     bool mGameRunning;
-
 
     // --- WINDOW & STATE ---
     int mScreenWidth;
@@ -114,7 +108,6 @@ private:
     int mLightPosSlimeLoc;
     int mViewPosSlimeLoc;
     Texture2D mShadowTexture;
-
 
     // --- ENTITIES ---
     std::vector<std::unique_ptr<BaseEnemy>> mEnemies;

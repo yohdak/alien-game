@@ -16,7 +16,6 @@
 Game::Game(int width, int height) 
     : mScreenWidth(width), mScreenHeight(height)
     , mState(GameState::SPLASH)           // Mulai dari Splash
-    , mCurrentMenuOption(MenuOption::START)
     , mGameRunning(true)
     , mSplashTimer(0.0f)
     , mLoadingTimer(0.0f)
@@ -116,42 +115,35 @@ void Game::ProcessInput(float dt) {
     if (mState == GameState::LOADING) return;
 
     // -----------------------------------------------------------------------
-    // 2. STATE: MAIN MENU (Navigasi)
+    // 2. STATE: MAIN MENU (Delegasi ke MenuManager)
     // -----------------------------------------------------------------------
     if (mState == GameState::MAIN_MENU) {
-        // Navigasi Bawah
-        if (IsKeyPressed(KEY_S) || IsKeyPressed(KEY_DOWN)) {
-            int next = (int)mCurrentMenuOption + 1;
-            if (next > (int)MenuOption::EXIT) next = 0;
-            mCurrentMenuOption = (MenuOption)next;
-            PlaySound(mAssets.GetSound("select")); // Opsional: Bunyi klik
-        }
-        // Navigasi Atas
-        if (IsKeyPressed(KEY_W) || IsKeyPressed(KEY_UP)) {
-            int prev = (int)mCurrentMenuOption - 1;
-            if (prev < 0) prev = (int)MenuOption::EXIT;
-            mCurrentMenuOption = (MenuOption)prev;
-            PlaySound(mAssets.GetSound("select"));
-        }
+        mMenuManager.Update(); // Biarkan manager handle input W/S/Enter
+        
+        MenuAction action = mMenuManager.GetLastAction();
+        if (action != MenuAction::NONE) {
+            mMenuManager.ResetAction();
+            PlaySound(mAssets.GetSound("confirm")); // Bunyi confirm
 
-        // Eksekusi Pilihan
-        if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE)) {
-            PlaySound(mAssets.GetSound("confirm"));
-            
-            switch (mCurrentMenuOption) {
-                case MenuOption::START:
+            switch (action) {
+                case MenuAction::START_SURVIVAL:
                     ResetGame();
                     mState = GameState::PLAYING;
                     break;
-                case MenuOption::SETTINGS:
+                case MenuAction::START_ADVENTURE:
+                    std::cout << "🚧 ADVENTURE MODE BELUM DIBUAT" << std::endl;
+                    // Nanti set state ke ADVENTURE disini
+                    break;
+                case MenuAction::OPEN_SETTINGS:
                     mState = GameState::SETTINGS;
                     break;
-                case MenuOption::CREDITS:
+                case MenuAction::OPEN_CREDITS:
                     mState = GameState::CREDITS;
                     break;
-                case MenuOption::EXIT:
-                    mGameRunning = false; // Keluar dari loop Run()
+                case MenuAction::EXIT_GAME:
+                    mGameRunning = false;
                     break;
+                default: break;
             }
         }
         return;
@@ -855,52 +847,15 @@ void Game::Draw() {
     }
 
     // --------------------------------------------------------------------------
-    // 3. MAIN MENU (Posisi Kanan)
+    // 3. MAIN MENU (Render via Manager)
     // --------------------------------------------------------------------------
     else if (mState == GameState::MAIN_MENU) {
-        // Background Menu
-        Rectangle source = { 0, 0, (float)mMenuBg.width, (float)mMenuBg.height };
-        Rectangle dest = { 0, 0, (float)mScreenWidth, (float)mScreenHeight };
-        DrawTexturePro(mMenuBg, source, dest, (Vector2){0,0}, 0.0f, WHITE);
-
-        // Center Point untuk Menu (75% ke kanan)
-        int menuCenterX = (int)(mScreenWidth * 0.75f); 
-
-        // Judul Game
-        const char* title = "MEGABONK SURVIVAL";
-        int titleW = MeasureText(title, 40);
+        // Serahkan rendering sepenuhnya ke MenuManager
+        // Kita oper mMenuBg agar tetap konsisten dengan aset yg sudah diload Game.cpp
+        mMenuManager.Draw(mScreenWidth, mScreenHeight, mMenuBg);
         
-        // Shadow & Text
-        DrawText(title, menuCenterX - titleW/2 + 3, 103, 40, BLACK); 
-        DrawText(title, menuCenterX - titleW/2, 100, 40, GOLD);
-
-        // Menu Options
-        const char* options[] = { "START GAME", "SETTINGS", "CREDITS", "EXIT" };
-        int startY = mScreenHeight / 2 - 50;
-        int spacing = 60;
-
-        for (int i = 0; i < 4; i++) {
-            bool isSelected = (i == (int)mCurrentMenuOption);
-            Color color = isSelected ? YELLOW : RAYWHITE;
-            int fontSize = isSelected ? 35 : 25; // Zoom effect selection
-
-            int textW = MeasureText(options[i], fontSize);
-            int posX = menuCenterX - textW/2;
-            int posY = startY + (i * spacing);
-
-            DrawText(options[i], posX + 2, posY + 2, fontSize, BLACK); // Shadow
-            DrawText(options[i], posX, posY, fontSize, color);
-
-            // Panah Seleksi
-            if (isSelected) {
-                float time = GetTime() * 10.0f;
-                int offset = (int)(sinf(time) * 5.0f); // Animasi gerak
-                DrawText(">", posX - 30 + offset, posY, fontSize, YELLOW);
-                DrawText("<", posX + textW + 15 - offset, posY, fontSize, YELLOW);
-            }
-        }
-        
-        DrawText("v2.0 - Stable Build", mScreenWidth - 150, mScreenHeight - 20, 10, GRAY);
+        // Versi teks di bawah bisa tetap ditaruh sini atau dipindah ke MenuManager
+        DrawText("v2.1 - Modular Menu", mScreenWidth - 150, mScreenHeight - 20, 10, GRAY);
     }
 
     // --------------------------------------------------------------------------
