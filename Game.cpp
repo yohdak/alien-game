@@ -659,6 +659,7 @@ void Game::LoadGameplayContent() {
     std::cout << "✅ ASSETS LOADED COMPLETELY!" << std::endl;
 }
 void Game::Draw() {
+    
     // ==============================================================================
     // PHASE 1: 3D WORLD RENDER (Hanya saat Gameplay/Pause/Result)
     // ==============================================================================
@@ -672,6 +673,8 @@ void Game::Draw() {
             ClearBackground((Color){ 20, 20, 25, 255 }); // Dark Blue-ish Gray
 
             BeginMode3D(mCamera);
+
+                mLevelManager.Draw();
                 
                 // 1. Ground
                 if (mAssets.GetModel("ground").meshCount > 0) {
