@@ -25,6 +25,7 @@ struct Portal {
 class LevelManager {
 public:
     LevelManager();
+    ~LevelManager(); // ✅ Add Destructor
     
     // 🔥 FUNGSI BARU INI WAJIB ADA
     void SetGroundShader(Shader shader); 
@@ -35,6 +36,14 @@ public:
 
     bool CheckWallCollision(Vector3 pos, float radius);
     bool CheckBreakableCollision(Vector3 pos, float radius, float damage);
+
+    // 🔥 FUNGSI BARU UNTUK COLLISION MAP
+    void LoadCollisionMap(const char* imagePath);
+    bool IsPixelCollision(Vector3 pos, float radius);
+
+    // 🔥 Spawn Parsing for Story Mode
+    Vector3 GetPlayerSpawnPoint();
+    std::vector<Vector3> GetEnemySpawnPoints();
 
 private:
     int mMapWidth;
@@ -53,4 +62,12 @@ private:
     
     Shader mRefShader;  // 🔥 Simpan referensi shader
     bool mShaderSet;
+
+    // 🔥 DATA PIXEL UNTUK COLLISION MAP
+    Image mCollisionMap;
+    Color* mCollisionPixels;
+    bool mHasCollisionMap;
+    
+    Texture2D mMapTexture; // ✅ Visual Map
+    bool mHasMapTexture;
 };

@@ -33,6 +33,7 @@ private:
     MenuAction mLastAction;
 
     // Data Menu
+    // "NEW GAME", "CONTINUE", "SETTINGS", "CREDITS", "MAP EDITOR", "EXIT"
     std::vector<const char*> mMainOptions = { "NEW GAME", "CONTINUE", "SETTINGS", "CREDITS", "EXIT" };
     std::vector<const char*> mNewGameOptions = { "ADVENTURE (STORY)", "SURVIVAL (WAVE)", "BACK" };
 

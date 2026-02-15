@@ -83,6 +83,7 @@ Game::~Game() {
     UnloadTexture(mShadowTexture);
     
     // 4. BARU TUTUP WINDOW (Ini harus paling terakhir)
+    mAssets.UnloadAll(); // ✅ Fix Segfault: Unload before CloseWindow
     CloseAudioDevice(); // Tambahkan ini kalau pakai InitAudioDevice
     CloseWindow();
 }
@@ -130,10 +131,14 @@ void Game::ProcessInput(float dt) {
                     ResetGame();
                     mState = GameState::PLAYING;
                     break;
-                case MenuAction::START_ADVENTURE:
-                    std::cout << "🚧 ADVENTURE MODE BELUM DIBUAT" << std::endl;
-                    // Nanti set state ke ADVENTURE disini
+                case MenuAction::START_ADVENTURE: {
+                    ResetGame();
+                    // Reset to default ground (Story Mode Reset)
+                    mLevelManager.LoadCollisionMap("ground.png");
+                    mState = GameState::STORY_MODE;
+                    std::cout << "📖 STORY MODE (RESET)" << std::endl;
                     break;
+                }
                 case MenuAction::OPEN_SETTINGS:
                     mState = GameState::SETTINGS;
                     break;
@@ -280,21 +285,46 @@ void Game::Update(float dt) {
     // 5. 🔥 GAMEPLAY LOGIC (Hanya jalan saat State == PLAYING)
     // ==============================================================================
 
-   // --- A. PLAYER MOVEMENT & MAP COLLISION ---
+    // --- A. PLAYER MOVEMENT & MAP COLLISION (SLIDING LOGIC) ---
     
-    // 1. Update Level Physics (Air/Portal)
-    // Pastikan mVelocity public di Player.h atau buat Getter/Setter
-    // Jika error, sementara comment dulu baris ini sampai Player.h disesuaikan
-    // mLevelManager.Update(dt, mPlayer.mPosition, mPlayer.mVelocity); 
-
+    float playerRadius = 0.5f;
     Vector3 oldPos = mPlayer.GetPosition();
-    mPlayer.Update(dt); // Player gerak dulu
     
-    // 2. Cek Tabrakan Tembok (LevelManager)
-    // Logika sliding sederhana: kalau nabrak, kembalikan ke posisi sebelumnya
-    if (mLevelManager.CheckWallCollision(mPlayer.GetPosition(), 0.5f)) {
-        mPlayer.SetPosition(oldPos); 
+    // 1. Prediksi Posisi Berikutnya (Tanpa Gerak Dulu)
+    Vector3 desiredPos = mPlayer.GetFuturePosition(dt);
+    
+    // 2. Cek Tabrakan di Posisi Target
+    if (mLevelManager.IsPixelCollision(desiredPos, playerRadius)) {
+        
+        // 🔥 SLIDING LOGIC: Coba gerak per sumbu
+        Vector3 slideX = { desiredPos.x, oldPos.y, oldPos.z };
+        Vector3 slideZ = { oldPos.x, oldPos.y, desiredPos.z };
+        
+        // Cek Sumbu X aman?
+        if (!mLevelManager.IsPixelCollision(slideX, playerRadius)) {
+             mPlayer.SetPosition(slideX);
+        }
+        // Cek Sumbu Z aman?
+        else if (!mLevelManager.IsPixelCollision(slideZ, playerRadius)) {
+             mPlayer.SetPosition(slideZ);
+        }
+        else {
+             // Stuck total, diam di tempat
+             // mPlayer.SetPosition(oldPos); // Tidak perlu set, karena belum di-set
+        }
+        
+    } else {
+        // Aman, gerak bebas
+        mPlayer.SetPosition(desiredPos);
     }
+    
+    // PENTING: Update rotasi player & animasi (tanpa ubah posisi lagi)
+    mPlayer.UpdateRotationOnly(dt); 
+
+    // 3. Keep old CheckWallCollision for backward compatibility (optional)
+    // if (mLevelManager.CheckWallCollision(mPlayer.GetPosition(), 0.5f)) {
+    //     mPlayer.SetPosition(oldPos); 
+    // }
 
     // --- B. MANAGERS UPDATE ---
     mProjectileManager.Update(dt, mAssets, mParticles);
@@ -356,12 +386,14 @@ void Game::Update(float dt) {
     mCamera.target = finalTarget;
 
     // --- E. WAVE MANAGER ---
-    mWaveManager.Update(dt, mPlayer.GetLevel(), (int)mEnemies.size());
+    if (mState == GameState::PLAYING) {
+        mWaveManager.Update(dt, mPlayer.GetLevel(), (int)mEnemies.size());
 
-    if (mWaveManager.ShouldSpawn()) {
-        EnemySpawnEntry entry = mWaveManager.GetNextSpawn();
-        SpawnEnemy(entry, {0, 0, 0}); // 0,0,0 trigger random position logic di SpawnEnemy
-        mWaveManager.ConsumeSpawnSignal();
+        if (mWaveManager.ShouldSpawn()) {
+            EnemySpawnEntry entry = mWaveManager.GetNextSpawn();
+            SpawnEnemy(entry, {0, 0, 0}); // 0,0,0 trigger random position logic di SpawnEnemy
+            mWaveManager.ConsumeSpawnSignal();
+        }
     }
 
     // Wave Bonus & Victory Check
@@ -404,7 +436,7 @@ void Game::Update(float dt) {
 
             if (mPlayer.IsDead()) {
                 mState = GameState::GAME_OVER;
-                mParticles.SpawnExplosion(playerPos, SKYBLUE, 50);
+                mParticles.SpawnExplosion(playerPos, WHITE, 50); // Bulu Ayam (White Feathers)
             }
         }
 
@@ -639,9 +671,12 @@ void Game::LoadGameplayContent() {
     if (mAssets.GetModel("cube").meshCount > 0) {
         mAssets.GetModel("cube").materials[0].shader = mGroundShader;
     }
-    if (mAssets.GetModel("soto").meshCount > 0) {
-        mAssets.GetModel("soto").materials[0].shader = mGroundShader;
+    if (mAssets.GetModel("ayam").meshCount > 0) {
+        mAssets.GetModel("ayam").materials[0].shader = mGroundShader;
     }
+
+    // 3b. Load Collision Map
+    mLevelManager.LoadCollisionMap("ground.png");
 
     // 4. Shadow System
     mShadowTexture = GenerateShadowTexture(); 
@@ -659,7 +694,6 @@ void Game::LoadGameplayContent() {
     std::cout << "✅ ASSETS LOADED COMPLETELY!" << std::endl;
 }
 void Game::Draw() {
-    
     // ==============================================================================
     // PHASE 1: 3D WORLD RENDER (Hanya saat Gameplay/Pause/Result)
     // ==============================================================================
@@ -685,7 +719,7 @@ void Game::Draw() {
                 }
 
                 // 2. Player (Selalu gambar kecuali loading)
-                mPlayer.Draw(mAssets.GetModel("soto"), mCamera, mShadowTexture);
+                mPlayer.Draw(mAssets.GetModel("ayam"), mCamera, mShadowTexture);
 
                 // 3. Update Shader Uniforms (Lighting Position)
                 SetShaderValue(mSlimeShader, mViewPosSlimeLoc, &mCamera.position, SHADER_UNIFORM_VEC3);

@@ -189,6 +189,8 @@ void SlimeJumper::Draw(Model& slimeModel, Model& cubeModel, Model& magnetModel, 
     rlPopMatrix();
 
     // --- 6. RENDER OUTER SHELL (SLIME SKIN) ---
+    // 🔥 FORCE BLEND MODE (Agar Alpha Shader Kebaca)
+    BeginBlendMode(BLEND_ALPHA);
     rlDisableDepthMask(); 
         
         // Kirim warna yang sudah di-flash (shaderColorVec) ke Shader
@@ -199,6 +201,7 @@ void SlimeJumper::Draw(Model& slimeModel, Model& cubeModel, Model& magnetModel, 
         DrawModelEx(slimeModel, centerPos, (Vector3){0,1,0}, 0.0f, scale, WHITE);
         
     rlEnableDepthMask(); 
+    EndBlendMode(); // Reset blending
 }
 
 // ✅ GETTER UNTUK LOOT CHECK

@@ -29,13 +29,13 @@ AssetManager::~AssetManager() { UnloadAll(); }
 
 void AssetManager::LoadAll() {
     // 1. MODELS
-    mModels["soto"]   = LoadModelSafe("Resources/Models/Chicken.glb", GenMeshCylinder(0.5f, 1.0f, 16));
+    mModels["ayam"]   = LoadModelSafe("Resources/Models/Chicken.glb", GenMeshCylinder(0.5f, 1.0f, 16));
     mModels["magnet"] = LoadModelSafe("Resources/Models/Magnet.glb",  GenMeshCube(0.5f, 0.5f, 0.5f));
     
     // 2. PROCEDURAL & DIRECT LOAD
     mModels["cube"]        = LoadModelFromMesh(GenMeshCube(1.0f, 1.0f, 1.0f));
     mModels["slime"]       = LoadModelFromMesh(GenMeshSphere(1.0f, 32, 32));
-    mModels["ground"]      = LoadModelSafe("Resources/map_col_2.glb", GenMeshPlane(100.0f, 100.0f, 1, 1));
+    mModels["ground"]      = LoadModelFromMesh(GenMeshPlane(100.0f, 100.0f, 1, 1));
     mModels["shadow_plane"] = LoadModelFromMesh(GenMeshPlane(1.0f, 1.0f, 1, 1));
 
     // 3. TEXTURES

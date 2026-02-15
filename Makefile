@@ -42,6 +42,7 @@ $(TARGET): $(OBJS)
 -include $(DEPS)
 
 # Bersih-bersih total
+# Bersih-bersih total
 clean:
 	@echo "🧹 Cleaning up..."
 	@rm -f $(OBJS) $(TARGET) $(DEPS)

@@ -199,7 +199,7 @@ void Player::LevelUp() {
     hp = maxHp; 
 }
 
-void Player::Draw(Model& sotoModel, Camera3D cam, Texture2D shadow) {
+void Player::Draw(Model& ayamModel, Camera3D cam, Texture2D shadow) {
     if (IsDead()) return;
 
     float hop = fabsf(sinf(walkTimer)) * 0.15f; 
@@ -258,7 +258,7 @@ void Player::Draw(Model& sotoModel, Camera3D cam, Texture2D shadow) {
     rlPopMatrix();
 
     // --- DRAW MODEL ---
-    if (sotoModel.meshCount > 0) {
+    if (ayamModel.meshCount > 0) {
         float modelScale = 0.012f;
         rlPushMatrix(); 
             rlTranslatef(drawPos.x, drawPos.y, drawPos.z);
@@ -276,7 +276,7 @@ void Player::Draw(Model& sotoModel, Camera3D cam, Texture2D shadow) {
 
             rlScalef(modelScale * dashScaleXZ, modelScale * dashScaleY, modelScale * dashScaleXZ);
             
-            DrawModel(sotoModel, {0, 0, 0}, 1.0f, WHITE);
+            DrawModel(ayamModel, {0, 0, 0}, 1.0f, WHITE);
         rlPopMatrix(); 
     }
 }
@@ -301,4 +301,92 @@ void Player::Heal(float amount) {
 
 void Player::ActivateMagnetBuff(float duration) {
     magnetBuffTimer = duration;
+}
+
+Vector3 Player::GetFuturePosition(float dt) {
+    if (IsDead()) return position;
+
+    Vector3 nextPos = position;
+
+    // 1. DASH MOVEMENT PREDICTION
+    if (dashTime > 0.0f) {
+        // Simulasi decrement dashTime (agar sama dengan logic asli)
+        float simTime = dashTime - dt;
+        if (simTime < 0) simTime = 0;
+
+        float p = 1.0f - (simTime / 0.4f); 
+        
+        if (p >= 0.2f && p <= 0.8f) {
+            nextPos.x += dashDir.x * 35.0f * dt;
+            nextPos.z += dashDir.z * 35.0f * dt;
+        } 
+        else if (p > 0.8f) {
+            float slide = 1.0f - ((p - 0.8f) / 0.2f); 
+            nextPos.x += dashDir.x * 10.0f * slide * dt;
+            nextPos.z += dashDir.z * 10.0f * slide * dt;
+        }
+        return nextPos; 
+    }
+
+    // 2. NORMAL MOVEMENT PREDICTION
+    Vector3 input = { 0, 0, 0 };
+    if (IsKeyDown(KEY_W)) input.z -= 1;
+    if (IsKeyDown(KEY_S)) input.z += 1;
+    if (IsKeyDown(KEY_A)) input.x -= 1;
+    if (IsKeyDown(KEY_D)) input.x += 1;
+
+    if (Vector3Length(input) > 0) {
+        input = Vector3Normalize(input);
+        nextPos = Vector3Add(position, Vector3Scale(input, stats.moveSpeed * dt));
+    }
+
+    return nextPos;
+}
+
+void Player::UpdateRotationOnly(float dt) {
+    if (IsDead()) return;
+
+    // --- STATE UPDATES (TIMERS) ---
+    if (shootTimer > 0) shootTimer -= dt;
+    if (magnetBuffTimer > 0) magnetBuffTimer -= dt;
+    if (dashCooldown > 0) dashCooldown -= dt;
+    if (dashTime > 0.0f) dashTime -= dt; // Decrement dashTime here
+
+    // --- WEAPON SWITCHING ---
+    if (IsKeyPressed(KEY_ONE)) SwitchWeapon(WeaponType::PISTOL);
+    if (IsKeyPressed(KEY_TWO)) SwitchWeapon(WeaponType::SHOTGUN);
+    if (IsKeyPressed(KEY_THREE)) SwitchWeapon(WeaponType::MINIGUN);
+    if (IsKeyPressed(KEY_FOUR)) SwitchWeapon(WeaponType::BAZOOKA);
+
+    float scroll = GetMouseWheelMove();
+    if (scroll != 0) {
+        int current = (int)currentWeapon;
+        current += (scroll > 0) ? 1 : -1;
+        if (current > 3) current = 0;
+        if (current < 0) current = 3;
+        SwitchWeapon((WeaponType)current);
+    }
+
+    // --- ROTATION & ANIMATION ---
+    // Jangan proses rotasi kalau lagi dashing (terkunci)
+    if (dashTime > 0.0f) return;
+
+    Vector3 input = { 0, 0, 0 };
+    if (IsKeyDown(KEY_W)) input.z -= 1;
+    if (IsKeyDown(KEY_S)) input.z += 1;
+    if (IsKeyDown(KEY_A)) input.x -= 1;
+    if (IsKeyDown(KEY_D)) input.x += 1;
+
+    if (Vector3Length(input) > 0) {
+        float targetRotation = (atan2f(input.x, input.z) * RAD2DEG) + 90.0f;
+        rotationY = LerpAngle(rotationY, targetRotation, 10.0f * dt);
+
+        walkTimer += dt * 12.0f; 
+        if (walkTimer > PI * 2.0f) walkTimer -= PI * 2.0f;
+    } else {
+        float target = 0.0f;
+        if (walkTimer > PI) target = PI * 2.0f;
+        walkTimer = Lerp(walkTimer, target, 10.0f * dt);
+        if (fabs(target - walkTimer) < 0.01f) walkTimer = 0.0f;
+    }
 }

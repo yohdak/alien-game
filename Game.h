@@ -36,7 +36,8 @@ enum class GameState {
     PLAYING,
     GAME_OVER,
     PAUSED,
-    VICTORY
+    VICTORY,
+    STORY_MODE  // ✅ NEW
 };
 
 // ❌ HAPUS: enum class MenuOption (Sudah diganti MenuManager)
@@ -70,31 +71,33 @@ private:
     Texture2D GenerateShadowTexture();
 
 private:
-
-    bool mGameLoaded;
-    int mLoadingFrameDelay;
-    void LoadGameplayContent();
-
-    float mSplashTimer;
-    Texture2D mSplashLogo;
-
-    float mLoadingTimer;
-    Texture2D mMenuBg;
-    Texture2D mLoadingBg;
-    
-    // ✅ GANTI: Variabel Menu lama diganti dengan Class Manager
-    // MenuOption mCurrentMenuOption; <- Hapus ini
-    MenuManager mMenuManager;      // <- Ganti ini
-    
-    bool mGameRunning;
-
-    // --- WINDOW & STATE ---
+    // --- STATE INITIALIZATION ORDER ---
     int mScreenWidth;
     int mScreenHeight;
     GameState mState;
-    Camera3D mCamera;
+    bool mGameRunning;
+    
+    float mSplashTimer;
+    float mLoadingTimer;
+    float mScreenShakeIntensity;
+    float mShootTimer;
+    bool mWaveBonusClaimed;
+    
+    bool mGameLoaded;
+    int mLoadingFrameDelay;
 
     // --- SYSTEMS ---
+    void LoadGameplayContent(); // Helper func
+    
+    // Assets & Resources
+    Texture2D mSplashLogo;
+    Texture2D mMenuBg;
+    Texture2D mLoadingBg;
+    
+    // Managers
+    MenuManager mMenuManager;      
+    
+    Camera3D mCamera;
     AssetManager mAssets;
     Player mPlayer;
     WaveManager mWaveManager;
@@ -117,11 +120,7 @@ private:
     std::vector<std::unique_ptr<BaseEnemy>> mPendingEnemies;
     std::vector<XPGem> mGems;
 
-    // --- GAMEPLAY VARIABLES ---
-    float mScreenShakeIntensity;
-    float mShootTimer;
-    bool mWaveBonusClaimed;
-
+    // --- AUDIO ---
     Music* mBgMusic;
 
     // --- PIXEL MODE ---

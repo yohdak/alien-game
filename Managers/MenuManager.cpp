@@ -67,7 +67,7 @@ void MenuManager::Draw(int screenW, int screenH, Texture2D bgTexture) {
     for (int i = 0; i < currentOptions.size(); i++) {
         bool isSelected = (i == mSelectionIndex);
         Color color = isSelected ? YELLOW : RAYWHITE;
-        if (mCurrentPage == MenuPage::MAIN && i == 1) color = GRAY; // Continue dim dulu
+        if (mCurrentPage == MenuPage::MAIN && i == 1) color = GRAY; // Must view file first to know line numbers.m dulu
         
         int fontSize = isSelected ? 35 : 25;
         int textW = MeasureText(currentOptions[i], fontSize);

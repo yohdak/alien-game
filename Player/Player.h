@@ -30,7 +30,11 @@ public:
     Player();
     void Reset();
     void Update(float dt);
-    void Draw(Model& sotoModel, Camera3D cam, Texture2D shadow);
+    // 🔥 Metode baru untuk sistem collision physics
+    Vector3 GetFuturePosition(float dt);
+    void UpdateRotationOnly(float dt);
+    
+    void Draw(Model& ayamModel, Camera3D cam, Texture2D shadow);
 
     // Shooting & Dash System
     void TryShoot(Vector3 targetPos, ProjectileManager& projManager, float dt);
