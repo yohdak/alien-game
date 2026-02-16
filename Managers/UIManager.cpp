@@ -86,42 +86,55 @@ void UIManager::DrawHUD(const Player& player, const WaveManager& waveManager, in
     DrawFPS(screenW - 80, 20);
 }
 
-void UIManager::DrawPause(int screenW, int screenH) {
-    // 1. Overlay Gelap Transparan
-    DrawRectangle(0, 0, screenW, screenH, ColorAlpha(BLACK, 0.5f));
-
-    // 2. Teks PAUSED
-    const char* text = "PAUSED";
-    int fontSize = 60;
-    int textW = MeasureText(text, fontSize);
+void UIManager::DrawPause(int screenW, int screenH, int selection) {
+    // Dark overlay
+    DrawRectangle(0, 0, screenW, screenH, ColorAlpha(BLACK, 0.6f));
     
-    // Draw Text Centered
-    DrawText(text, screenW/2 - textW/2, screenH/2 - 30, fontSize, WHITE);
+    // Title
+    const char* title = "PAUSED";
+    int titleW = MeasureText(title, 50);
+    DrawText(title, screenW/2 - titleW/2, 100, 50, WHITE);
     
-    // Instruksi Resume
-    const char* subText = "Press [P] to Resume";
-    int subW = MeasureText(subText, 20);
-    DrawText(subText, screenW/2 - subW/2, screenH/2 + 40, 20, LIGHTGRAY);
+    // Menu options
+    const char* options[] = {"CONTINUE", "RESTART", "SETTINGS", "MAIN MENU"};
+    int startY = 230;
+    
+    for (int i = 0; i < 4; i++) {
+        Color color = (i == selection) ? YELLOW : LIGHTGRAY;
+        int textW = MeasureText(options[i], 30);
+        DrawText(options[i], screenW/2 - textW/2, startY + i*55, 30, color);
+        
+        // Selection arrows
+        if (i == selection) {
+            DrawText(">", screenW/2 - textW/2 - 40, startY + i*55, 30, YELLOW);
+            DrawText("<", screenW/2 + textW/2 + 20, startY + i*55, 30, YELLOW);
+        }
+    }
+    
+    // Controls hint
+    DrawText("[W/S] Navigate  [ENTER] Select  [P/ESC] Quick Resume", 
+             screenW/2 - 250, screenH - 60, 16, GRAY);
 }
 
 void UIManager::DrawGameOver(int screenW, int screenH, int waveReached, int levelReached) {
     DrawRectangle(0, 0, screenW, screenH, (Color){0, 0, 0, 200});
     
+    // ✅ FIX: Move all text higher to avoid overlap with high score table
     const char* gameOverText = "SOTO TUMPAH";
     int textWidth = MeasureText(gameOverText, 50);
-    DrawText(gameOverText, screenW/2 - textWidth/2, screenH/2 - 60, 50, RED);
+    DrawText(gameOverText, screenW/2 - textWidth/2, 80, 50, RED);
     
     const char* statsText = TextFormat("SURVIVED TO WAVE %d", waveReached);
     int statsWidth = MeasureText(statsText, 25);
-    DrawText(statsText, screenW/2 - statsWidth/2, screenH/2, 25, GRAY);
+    DrawText(statsText, screenW/2 - statsWidth/2, 150, 25, GRAY);
     
     const char* levelText = TextFormat("FINAL LEVEL: %d", levelReached);
     int levelWidth = MeasureText(levelText, 20);
-    DrawText(levelText, screenW/2 - levelWidth/2, screenH/2 + 40, 20, SKYBLUE);
+    DrawText(levelText, screenW/2 - levelWidth/2, 185, 20, SKYBLUE);
     
     const char* retryText = "Press [R] to Retry";
     int retryWidth = MeasureText(retryText, 20);
-    DrawText(retryText, screenW/2 - retryWidth/2, screenH/2 + 100, 20, WHITE);
+    DrawText(retryText, screenW/2 - retryWidth/2, 230, 20, WHITE);
 }
 
 void UIManager::DrawVictory(int screenW, int screenH, int levelReached) {
@@ -142,4 +155,129 @@ void UIManager::DrawVictory(int screenW, int screenH, int levelReached) {
     const char* retryText = "Press [R] to Play Again";
     int retryWidth = MeasureText(retryText, 20);
     DrawText(retryText, screenW/2 - retryWidth/2, screenH/2 + 100, 20, WHITE);
+}
+// ============================================================================
+// FEATURE 4: HIGH SCORE DISPLAY
+// ============================================================================
+void UIManager::DrawHighScores(const std::vector<HighScoreEntry>& scores, int screenW, int screenH) {
+    if (scores.empty()) return;
+    
+    // ✅ FIX: Position table at center screen
+    int startY = 300;  // Center position
+    
+    // Title
+    const char* title = "TOP 5 HIGH SCORES";
+    DrawText(title, screenW/2 - MeasureText(title, 25)/2, startY, 25, GOLD);
+    
+    // Table Header
+    startY += 40;
+    DrawText("RANK", 100, startY, 18, GRAY);
+    DrawText("SCORE", 180, startY, 18, GRAY);
+    DrawText("WAVE", 280, startY, 18, GRAY);
+    DrawText("LEVEL", 360, startY, 18, GRAY);
+    DrawText("DATE", 450, startY, 18, GRAY);
+    
+    // Scores
+    startY += 30;
+    for (int i = 0; i < scores.size() && i < 5; i++) {
+        Color rankColor = (i == 0) ? GOLD : ((i == 1) ? LIGHTGRAY : WHITE);
+        
+        DrawText(TextFormat("#%d", i+1), 100, startY + i*30, 18, rankColor);
+        DrawText(TextFormat("%d", scores[i].score), 180, startY + i*30, 18, rankColor);
+        DrawText(TextFormat("%d", scores[i].wave), 280, startY + i*30, 18, rankColor);
+        DrawText(TextFormat("%d", scores[i].level), 360, startY + i*30, 18, rankColor);
+        DrawText(scores[i].timestamp.c_str(), 450, startY + i*30, 14, GRAY);
+    }
+}
+
+// ============================================================================
+// FEATURE 2: SETTINGS MENU UI
+// ============================================================================
+void UIManager::DrawSettings(int screenW, int screenH, float musicVol, float sfxVol, 
+                              bool pixelMode, bool screenShake, int selectedOption) {
+    // Background
+    DrawRectangle(0, 0, screenW, screenH, ColorAlpha(BLACK, 0.8f));
+    
+    const char* title = "SETTINGS";
+    DrawText(title, screenW/2 - MeasureText(title, 40)/2, 80, 40, GOLD);
+    
+    int startY = 200;
+    int spacing = 80;
+    
+    // Music Volume Slider
+    const char* musicLabel = TextFormat("MUSIC VOLUME: %d%%", (int)(musicVol * 100));
+    Color musicColor = (selectedOption == 0) ? YELLOW : WHITE;
+    DrawText(musicLabel, 200, startY, 25, musicColor);
+    DrawRectangle(200, startY + 35, 400, 15, DARKGRAY);
+    DrawRectangle(200, startY + 35, (int)(400 * musicVol), 15, GREEN);
+    if (selectedOption == 0) DrawText("<  >", 620, startY, 25, YELLOW);
+    
+    // SFX Volume Slider
+    const char* sfxLabel = TextFormat("SFX VOLUME: %d%%", (int)(sfxVol * 100));
+    Color sfxColor = (selectedOption == 1) ? YELLOW : WHITE;
+    DrawText(sfxLabel, 200, startY + spacing, 25, sfxColor);
+    DrawRectangle(200, startY + spacing + 35, 400, 15, DARKGRAY);
+    DrawRectangle(200, startY + spacing + 35, (int)(400 * sfxVol), 15, BLUE);
+    if (selectedOption == 1) DrawText("<  >", 620, startY + spacing, 25, YELLOW);
+    
+    // Pixel Mode Toggle
+    const char* pixelLabel = TextFormat("PIXEL MODE: %s", pixelMode ? "ON" : "OFF");
+    Color pixelColor = (selectedOption == 2) ? YELLOW : WHITE;
+    DrawText(pixelLabel, 200, startY + spacing*2, 25, pixelColor);
+    if (selectedOption == 2) DrawText("<  >", 550, startY + spacing*2, 25, YELLOW);
+    
+    // Screen Shake Toggle
+    const char* shakeLabel = TextFormat("SCREEN SHAKE: %s", screenShake ? "ON" : "OFF");
+    Color shakeColor = (selectedOption == 3) ? YELLOW : WHITE;
+    DrawText(shakeLabel, 200, startY + spacing*3, 25, shakeColor);
+    if (selectedOption == 3) DrawText("<  >", 570, startY + spacing*3, 25, YELLOW);
+    
+    // Instructions
+    DrawText("Use [W/S] to navigate, [A/D] or [Left/Right] to change values", 
+             screenW/2 - 350, screenH - 100, 20, GRAY);
+    DrawText("Press [ESC] or [ENTER] to return", screenW/2 - 200, screenH - 60, 20, LIGHTGRAY);
+}
+
+// ============================================================================
+// FEATURE 3: TUTORIAL/HELP SCREEN
+// ============================================================================
+void UIManager::DrawTutorial(int screenW, int screenH) {
+    // Background
+    DrawRectangle(0, 0, screenW, screenH, ColorAlpha(BLACK, 0.9f));
+    
+    const char* title = "HOW TO PLAY";
+    DrawText(title, screenW/2 - MeasureText(title, 50)/2, 50, 50, GOLD);
+    
+    int col1X = 100;
+    int col2X = 600;
+    int startY = 150;
+    
+    // Column 1: Controls
+    DrawText("=== CONTROLS ===", col1X, startY, 25, SKYBLUE);
+    DrawText("[W A S D]  - Move", col1X+20, startY+40, 20, WHITE);
+    DrawText("[MOUSE]    - Aim", col1X+20, startY+70, 20, WHITE);
+    DrawText("[L-CLICK]  - Shoot", col1X+20, startY+100, 20, WHITE);
+    DrawText("[R-CLICK]  - Dash (cooldown)", col1X+20, startY+130, 20, WHITE);
+    DrawText("[1 2 3 4]  - Switch weapon", col1X+20, startY+160, 20, WHITE);
+    DrawText("[SCROLL]   - Switch weapon", col1X+20, startY+190, 20, WHITE);
+    DrawText("[P / ESC]  - Pause", col1X+20, startY+220, 20, WHITE);
+    
+    // Column 2: Gameplay
+    DrawText("=== GAMEPLAY ===", col2X, startY, 25, SKYBLUE);
+    DrawText("Survive 25 waves of enemies!", col2X+20, startY+40, 20, WHITE);
+    DrawText("Kill enemies to gain XP", col2X+20, startY+70, 20, WHITE);
+    DrawText("Level up to increase max HP", col2X+20, startY+100, 20, WHITE);
+    DrawText("Collect yellow XP orbs", col2X+20, startY+130, 20, YELLOW);
+    DrawText("Every 5 waves = Boss Fight", col2X+20, startY+160, 20, RED);
+    DrawText("", col2X+20, startY+190, 20, WHITE);
+    
+    // Tips
+    DrawText("=== TIPS  ===", col1X, startY+280, 25, GREEN);
+    DrawText("• Use DASH to dodge enemy attacks (I-frames!)", col1X+20, startY+320, 18, WHITE);
+    DrawText("• Magnet buff attracts XP orbs from far away", col1X+20, startY+350, 18, BLUE);
+    DrawText("• Red walls can be destroyed with bullets", col1X+20, startY+380, 18, RED);
+    DrawText("• Shotgun is best for close range swarms", col1X+20, startY+410, 18, ORANGE);
+    DrawText("• Bazooka deals explosive AOE damage", col1X+20, startY+440, 18, PURPLE);
+    
+    DrawText("Press [ENTER] or [ESC] to close", screenW/2 - 200, screenH - 60, 20, GRAY);
 }

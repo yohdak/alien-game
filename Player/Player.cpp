@@ -2,6 +2,7 @@
 #include "rlgl.h"
 #include <cmath>
 #include <algorithm>
+#include <iostream>
 #include "../Systems/ProjectileManager.h"
 #include "../Utils/MathUtils.h" 
 
@@ -301,4 +302,15 @@ void Player::Heal(float amount) {
 
 void Player::ActivateMagnetBuff(float duration) {
     magnetBuffTimer = duration;
+}
+
+void Player::LoadFromSave(int lvl, float curXP, float nxtXP, float health, float maxHealth, int weapon) {
+    level = lvl;
+    currentXP = curXP;
+    nextLevelXP = nxtXP;
+    hp = health;
+    maxHp = maxHealth;
+    SwitchWeapon((WeaponType)weapon);
+    
+    std::cout << "📥 Player state loaded: Level " << level << ", HP " << hp << "/" << maxHp << std::endl;
 }

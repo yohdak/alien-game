@@ -96,35 +96,13 @@ void AssetManager::LoadAll() {
 }
 
 void AssetManager::UnloadAll() {
-    TraceLog(LOG_INFO, "🗑️ UNLOAD: Starting cleanup...");
-    
-    TraceLog(LOG_INFO, "🗑️ UNLOAD: Unloading %d models...", (int)mModels.size());
     for (auto& pair : mModels) UnloadModel(pair.second);
-    
-    TraceLog(LOG_INFO, "🗑️ UNLOAD: Unloading %d textures...", (int)mTextures.size());
     for (auto& pair : mTextures) UnloadTexture(pair.second);
-    
-    TraceLog(LOG_INFO, "🗑️ UNLOAD: Unloading %d music streams...", (int)mMusics.size());
-    for (auto& pair : mMusics) {
-        TraceLog(LOG_INFO, "  - Unloading music: %s", pair.first.c_str());
-        UnloadMusicStream(pair.second);
-    }
-    
-    TraceLog(LOG_INFO, "🗑️ UNLOAD: Unloading %d sounds...", (int)mSounds.size());  
-    for (auto& pair : mSounds) {
-        TraceLog(LOG_INFO, "  - Unloading sound: %s", pair.first.c_str());
-        UnloadSound(pair.second);
-    }
-    
-    TraceLog(LOG_INFO, "🗑️ UNLOAD: Clearing maps...");
+    for (auto& pair : mMusics) UnloadMusicStream(pair.second);
     mModels.clear();
     mTextures.clear();
     mMusics.clear();
-    mSounds.clear();
-    
-    TraceLog(LOG_INFO, "🗑️ UNLOAD: Cleanup complete!");
 }
-
 
 Model& AssetManager::GetModel(const std::string& name) {
     if (mModels.find(name) == mModels.end()) return mModels["cube"]; 

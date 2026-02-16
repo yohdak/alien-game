@@ -2,7 +2,7 @@
 #include <cmath>
 
 MenuManager::MenuManager() 
-    : mCurrentPage(MenuPage::MAIN), mSelectionIndex(0), mLastAction(MenuAction::NONE) {}
+    : mCurrentPage(MenuPage::MAIN), mSelectionIndex(0), mLastAction(MenuAction::NONE), mHasSaveFile(false) {}
 
 MenuAction MenuManager::GetLastAction() { return mLastAction; }
 void MenuManager::ResetAction() { mLastAction = MenuAction::NONE; }
@@ -15,7 +15,12 @@ void MenuManager::Update() {
         if (mCurrentPage == MenuPage::MAIN) {
             switch (mSelectionIndex) {
                 case 0: mCurrentPage = MenuPage::NEW_GAME_SELECT; mSelectionIndex = 0; break; // New Game
-                case 1: /* TODO: Load Logic */ break; // Continue
+                case 1: 
+                    // ✅ SAVE: Load game jika ada save file
+                    if (mHasSaveFile) {
+                        mLastAction = MenuAction::CONTINUE_GAME;
+                    }
+                    break;
                 case 2: mLastAction = MenuAction::OPEN_SETTINGS; break;
                 case 3: mLastAction = MenuAction::OPEN_CREDITS; break;
                 case 4: mLastAction = MenuAction::EXIT_GAME; break;
@@ -66,8 +71,11 @@ void MenuManager::Draw(int screenW, int screenH, Texture2D bgTexture) {
 
     for (int i = 0; i < currentOptions.size(); i++) {
         bool isSelected = (i == mSelectionIndex);
-        Color color = isSelected ? YELLOW : RAYWHITE;
-        if (mCurrentPage == MenuPage::MAIN && i == 1) color = GRAY; // Continue dim dulu
+        
+        // ✅ SAVE: Gray out Continue jika tidak ada save file
+        bool isDisabled = (mCurrentPage == MenuPage::MAIN && i == 1 && !mHasSaveFile);
+        
+        Color color = isDisabled ? GRAY : (isSelected ? YELLOW : RAYWHITE);
         
         int fontSize = isSelected ? 35 : 25;
         int textW = MeasureText(currentOptions[i], fontSize);

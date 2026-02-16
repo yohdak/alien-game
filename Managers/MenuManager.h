@@ -6,6 +6,7 @@
 // Enum untuk komunikasi ke Game.cpp
 enum class MenuAction {
     NONE,
+    CONTINUE_GAME,     // ✅ SAVE: Load saved game
     START_SURVIVAL,    // Masuk ke Survival Mode
     START_ADVENTURE,   // Masuk ke Adventure Mode (Coming Soon)
     OPEN_SETTINGS,
@@ -26,11 +27,15 @@ public:
     
     MenuAction GetLastAction();
     void ResetAction();
+    
+    // ✅ SAVE SYSTEM: Set apakah Continue button aktif
+    void SetHasSaveFile(bool hasSave) { mHasSaveFile = hasSave; }
 
 private:
     MenuPage mCurrentPage;
     int mSelectionIndex;
     MenuAction mLastAction;
+    bool mHasSaveFile;     // ✅ SAVE: Apakah Continue option aktif
 
     // Data Menu
     std::vector<const char*> mMainOptions = { "NEW GAME", "CONTINUE", "SETTINGS", "CREDITS", "EXIT" };

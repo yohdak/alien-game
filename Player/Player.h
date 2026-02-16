@@ -57,6 +57,8 @@ public:
     Vector3 GetPosition() const { return position; }
     void SetPosition(Vector3 pos) { position = pos; } 
 
+    void LoadFromSave(int level, float currentXP, float nextLevelXP, float hp, float maxHp, int weaponType);
+
     void PushBack(Vector3 direction, float distance) {
         position = Vector3Add(position, Vector3Scale(direction, distance));
     }

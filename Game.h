@@ -15,6 +15,9 @@
 #include "Managers/UIManager.h"
 #include "Managers/MenuManager.h" // ✅ BARU: Tambahkan ini
 #include "Managers/LevelManager.h"
+#include "Managers/SaveManager.h"  // ✅ SAVE SYSTEM
+#include "Managers/SettingsManager.h" // ✅ SETTINGS SYSTEM
+
 
 // ✅ ENEMY INCLUDES
 #include "Enemies/BaseEnemy.h"
@@ -32,6 +35,7 @@ enum class GameState {
     LOADING,
     MAIN_MENU,
     SETTINGS,
+    TUTORIAL,      // ✅ Feature 3: Tutorial Screen
     CREDITS,
     PLAYING,
     GAME_OVER,
@@ -92,6 +96,7 @@ private:
     int mScreenWidth;
     int mScreenHeight;
     GameState mState;
+    GameState mPreviousState;  // Track state before entering Settings
     Camera3D mCamera;
 
     // --- SYSTEMS ---
@@ -103,6 +108,19 @@ private:
     ParticleSystem mParticles;
     UIManager mUI;
     LevelManager mLevelManager;
+    SaveManager mSaveManager;     // ✅ SAVE SYSTEM
+    SettingsManager mSettingsManager; // ✅ SETTINGS SYSTEM
+    
+    bool mHasSaveFile;            // ✅ Flag untuk Continue button
+    int mSettingsSelection;       // ✅ Settings: Current menu option (0-3)
+    int mPauseMenuSelection;      // ✅ Pause: Current menu option (0-3)
+    std::vector<HighScoreEntry> mCachedHighScores; // ✅ Cached high scores (prevent reload every frame)
+    
+    // ✅ FEATURE 5: Visual Effects
+    float mDamageFlashTimer;      // Screen flash on damage
+    int mKillCombo;               // Current kill streak
+    float mKillComboTimer;        // Time since last kill
+    float mKillComboScale;        // ✅ VFX: Scale for combo text animation
 
     // --- RENDERING ---
     Shader mGroundShader;

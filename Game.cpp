@@ -24,6 +24,14 @@ Game::Game(int width, int height)
     , mWaveBonusClaimed(false)
     , mGameLoaded(false)      // Belum load aset berat
     , mLoadingFrameDelay(0)   // Reset counter frame
+    , mHasSaveFile(false)     // ✅ SAVE: Flag untuk Continue button
+    , mSettingsSelection(0)   // ✅ SETTINGS: Menu selection
+    , mPauseMenuSelection(0)  // ✅ PAUSE: Menu selection (Default 0)
+    , mDamageFlashTimer(0.0f) // ✅ VFX: Damage flash
+    , mKillCombo(0)           // ✅ VFX: Kill combo
+    , mKillComboTimer(0.0f)   // ✅ VFX: Combo timer
+    , mKillComboScale(1.0f)   // ✅ VFX: Scale animation
+    , mPreviousState(GameState::MAIN_MENU) // ✅ Default previous state
 {
     // 1. Init System Core (Cepat)
     InitWindow(mScreenWidth, mScreenHeight, "Megabonk Engine v2.0 - 25 Wave Survival");
@@ -126,6 +134,21 @@ void Game::ProcessInput(float dt) {
             PlaySound(mAssets.GetSound("confirm")); // Bunyi confirm
 
             switch (action) {
+                case MenuAction::CONTINUE_GAME:
+                    // ✅ SAVE: Load saved game
+                    {
+                        PlayerSaveData saveData;
+                        if (mSaveManager.LoadPlayerProgress(saveData)) {
+                            ResetGame(); // Clear state first
+                            mPlayer.LoadFromSave(saveData.level, saveData.currentXP, saveData.nextLevelXP,
+                                               saveData.hp, saveData.maxHp, saveData.weaponType);
+                            // TODO: Restore wave (need WaveManager method)
+                            // For now, restart from wave 1 with loaded stats
+                            mState = GameState::PLAYING;
+                            std::cout << "▶️ GAME CONTINUED from save!" << std::endl;
+                        }
+                    }
+                    break;
                 case MenuAction::START_SURVIVAL:
                     ResetGame();
                     mState = GameState::PLAYING;
@@ -135,6 +158,7 @@ void Game::ProcessInput(float dt) {
                     // Nanti set state ke ADVENTURE disini
                     break;
                 case MenuAction::OPEN_SETTINGS:
+                    mPreviousState = GameState::MAIN_MENU;
                     mState = GameState::SETTINGS;
                     break;
                 case MenuAction::OPEN_CREDITS:
@@ -150,9 +174,87 @@ void Game::ProcessInput(float dt) {
     }
 
     // -----------------------------------------------------------------------
-    // 3. STATE: SUB-MENUS (Settings & Credits)
+    // 3. STATE: SETTINGS MENU
     // -----------------------------------------------------------------------
-    if (mState == GameState::SETTINGS || mState == GameState::CREDITS) {
+    if (mState == GameState::SETTINGS) {
+        // Navigate options
+        if (IsKeyPressed(KEY_W) || IsKeyPressed(KEY_UP)) {
+            mSettingsSelection = (mSettingsSelection - 1 + 4) % 4;
+        }
+        if (IsKeyPressed(KEY_S) || IsKeyPressed(KEY_DOWN)) {
+            mSettingsSelection = (mSettingsSelection + 1) % 4;
+        }
+        
+        // Adjust values
+        if (IsKeyPressed(KEY_A) || IsKeyPressed(KEY_LEFT)) {
+            switch (mSettingsSelection) {
+                case 0: // Music Volume
+                    mSettingsManager.SetMusicVolume(mSettingsManager.GetMusicVolume() - 0.1f);
+                    if (mBgMusic && mBgMusic->ctxData) {
+                        SetMusicVolume(*mBgMusic, mSettingsManager.GetMusicVolume());
+                    }
+                    break;
+                case 1: // SFX Volume
+                    mSettingsManager.SetSFXVolume(mSettingsManager.GetSFXVolume() - 0.1f);
+                    mAssets.SetMasterSFXVolume(mSettingsManager.GetSFXVolume());
+                    mAssets.ApplySFXVolumeToAll();
+                    break;
+                case 2: // Pixel Mode
+                    mSettingsManager.SetPixelMode(!mSettingsManager.IsPixelMode());
+                    break;
+                case 3: // Screen Shake
+                    mSettingsManager.SetScreenShake(!mSettingsManager.IsScreenShakeEnabled());
+                    break;
+            }
+        }
+        if (IsKeyPressed(KEY_D) || IsKeyPressed(KEY_RIGHT)) {
+            switch (mSettingsSelection) {
+                case 0: // Music Volume
+                    mSettingsManager.SetMusicVolume(mSettingsManager.GetMusicVolume() + 0.1f);
+                    if (mBgMusic && mBgMusic->ctxData) {
+                        SetMusicVolume(*mBgMusic, mSettingsManager.GetMusicVolume());
+                    }
+                    break;
+                case 1: // SFX Volume
+                    mSettingsManager.SetSFXVolume(mSettingsManager.GetSFXVolume() + 0.1f);
+                    mAssets.SetMasterSFXVolume(mSettingsManager.GetSFXVolume());
+                    mAssets.ApplySFXVolumeToAll();
+                    break;
+                case 2: // Pixel Mode
+                    mSettingsManager.SetPixelMode(!mSettingsManager.IsPixelMode());
+                    break;
+                case 3: // Screen Shake
+                    mSettingsManager.SetScreenShake(!mSettingsManager.IsScreenShakeEnabled());
+                    break;
+            }
+        }
+        
+        // Exit
+        if (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_ENTER)) {
+             // ✅ FIX: Return to previous state (Pause or Main Menu)
+            if (mPreviousState == GameState::PAUSED) {
+                mState = GameState::PAUSED;
+            } else {
+                mState = GameState::MAIN_MENU;
+            }
+        }
+        return;
+    }
+    
+    // -----------------------------------------------------------------------
+    // 4. STATE: TUTORIAL/HELP SCREEN
+    // -----------------------------------------------------------------------
+    if (mState == GameState::TUTORIAL) {
+        if (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_ENTER)) {
+            mState = GameState::MAIN_MENU;
+        }
+        return;
+    }
+    
+    // -----------------------------------------------------------------------
+    // 5. STATE: CREDITS
+    // -----------------------------------------------------------------------
+    if (mState == GameState::CREDITS) {
         if (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_ENTER)) {
             mState = GameState::MAIN_MENU;
         }
@@ -166,6 +268,7 @@ void Game::ProcessInput(float dt) {
         // Toggle Pause
         if (IsKeyPressed(KEY_P) || IsKeyPressed(KEY_ESCAPE)) {
             mState = GameState::PAUSED;
+            mPauseMenuSelection = 0; // ✅ FIX: Reset selection to top
         }
 
         // CHEAT CODE: Shift + L + J (Skip Wave)
@@ -179,15 +282,43 @@ void Game::ProcessInput(float dt) {
     }
 
     // -----------------------------------------------------------------------
-    // 5. STATE: PAUSED
+    // 5. STATE: PAUSED MENU
     // -----------------------------------------------------------------------
     if (mState == GameState::PAUSED) {
+        // Navigate menu
+        if (IsKeyPressed(KEY_W) || IsKeyPressed(KEY_UP)) {
+            mPauseMenuSelection = (mPauseMenuSelection - 1 + 4) % 4;
+        }
+        if (IsKeyPressed(KEY_S) || IsKeyPressed(KEY_DOWN)) {
+            mPauseMenuSelection = (mPauseMenuSelection + 1) % 4;
+        }
+        
+        // Select option
+        if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE)) {
+            switch (mPauseMenuSelection) {
+                case 0: // Continue
+                    mState = GameState::PLAYING;
+                    break;
+                case 1: // Restart
+                    ResetGame();
+                    mState = GameState::PLAYING;
+                    break;
+                case 2: // Settings
+                    mPreviousState = GameState::PAUSED; // ✅ FIX: Track origin
+                    mState = GameState::SETTINGS;
+                    mSettingsSelection = 0;
+                    break;
+                case 3: // Main Menu
+                    mState = GameState::MAIN_MENU;
+                    break;
+            }
+        }
+        
+        // Quick resume with P/ESC
         if (IsKeyPressed(KEY_P) || IsKeyPressed(KEY_ESCAPE)) {
-            mState = GameState::PLAYING; // Resume
+            mState = GameState::PLAYING;
         }
-        if (IsKeyPressed(KEY_M)) {
-            mState = GameState::MAIN_MENU; // Back to Menu
-        }
+        
         return;
     }
 
@@ -262,9 +393,30 @@ void Game::Update(float dt) {
     // ==============================================================================
     // 3. MAIN MENU & SUB-MENUS
     // ==============================================================================
-    if (mState == GameState::MAIN_MENU || mState == GameState::SETTINGS || mState == GameState::CREDITS) {
+    if (mState == GameState::MAIN_MENU || mState == GameState::SETTINGS || mState == GameState::CREDITS || mState == GameState::TUTORIAL) {
+        // ✅ SAVE: Update MenuManager dengan status save file
+        if (mState == GameState::MAIN_MENU) {
+            mMenuManager.SetHasSaveFile(mHasSaveFile);
+        }
         return; // Logic input menu ada di ProcessInput()
     }
+
+    // ==============================================================================
+    // ✅ FEATURE 5: VISUAL EFFECTS - Decay timers
+    // ==============================================================================
+    if (mDamageFlashTimer > 0) {
+        mDamageFlashTimer -= dt;
+    }
+    
+    if (mKillComboTimer > 0) {
+        mKillComboTimer -= dt;
+        if (mKillComboTimer <= 0) {
+            mKillCombo = 0; // Reset combo
+        }
+    }
+    
+    // Smoothly decay scale back to 1.0
+    mKillComboScale = Lerp(mKillComboScale, 1.0f, 10.0f * dt);
 
     // ==============================================================================
     // 4. GAME STATE MANAGEMENT (Pause, GameOver, Victory)
@@ -372,8 +524,17 @@ void Game::Update(float dt) {
             mParticles.SpawnExplosion(playerPos, GOLD, 50);
             mWaveBonusClaimed = true;
             
+            // ✅ SAVE: Auto-save on wave completion
+            mSaveManager.SavePlayerProgress(mPlayer, mWaveManager.GetCurrentWave());
+            
             if (mWaveManager.GetCurrentWave() >= 25) {
                 mState = GameState::VICTORY;
+                // ✅ SAVE: Save high score and delete progress on victory
+                mSaveManager.SaveHighScore(mWaveManager.GetCurrentWave(), mPlayer.GetLevel());
+                mSaveManager.DeleteSaveFile();
+                
+                // ✅ FIX: Load high scores ONCE saat masuk ke state
+                mCachedHighScores = mSaveManager.LoadHighScores();
                 return;
             }
         }
@@ -401,10 +562,22 @@ void Game::Update(float dt) {
         if (Vector3Distance(playerPos, e->GetPosition()) < (e->GetRadius() + 0.5f)) {
             mPlayer.TakeDamage(20.0f * dt);
             mScreenShakeIntensity = 0.4f;
+            
+            // ✅ FEATURE 5: Damage flash on hit
+            if (mSettingsManager.IsScreenShakeEnabled()) {
+                mDamageFlashTimer = 0.2f;
+            }
 
             if (mPlayer.IsDead()) {
                 mState = GameState::GAME_OVER;
                 mParticles.SpawnExplosion(playerPos, SKYBLUE, 50);
+                
+                // ✅ SAVE: Save high score and delete progress on game over
+                mSaveManager.SaveHighScore(mWaveManager.GetCurrentWave(), mPlayer.GetLevel());
+                mSaveManager.DeleteSaveFile();
+                
+                // ✅ FIX: Load high scores ONCE saat masuk ke state, bukan setiap frame
+                mCachedHighScores = mSaveManager.LoadHighScores();
             }
         }
 
@@ -436,6 +609,10 @@ void Game::Update(float dt) {
                     b.active = false;
                     mParticles.SpawnExplosion(b.position, RED, 10);
                     mScreenShakeIntensity = 0.3f;
+                    // ✅ FEATURE 5: Damage flash on hit
+                    if (mSettingsManager.IsScreenShakeEnabled()) {
+                        mDamageFlashTimer = 0.2f;
+                    }
                 }
             }
         }
@@ -494,6 +671,11 @@ void Game::Update(float dt) {
 
                 // Enemy Death Logic
                 if (!e->IsActive()) {
+                    // ✅ FEATURE 5: Increment kill combo
+                    mKillCombo++;
+                    mKillComboTimer = 3.0f; // 3 seconds to continue combo
+                    mKillComboScale = 2.0f; // 💥 POP EFFECT!
+                    
                     Color color = (e->GetTier() == 1) ? RED : ((e->GetTier() == 2) ? BLUE : GOLD);
                     mParticles.SpawnExplosion(e->GetPosition(), color, 20);
                     mScreenShakeIntensity = 0.3f;
@@ -652,8 +834,15 @@ void Game::LoadGameplayContent() {
     // 5. Setup Music
     mBgMusic = &mAssets.GetMusic("bgm");
     if (mBgMusic->ctxData != nullptr) {
-        SetMusicVolume(*mBgMusic, 0.5f);
+        // ✅ SETTINGS: Apply volume from settings
+        SetMusicVolume(*mBgMusic, mSettingsManager.GetMusicVolume());
         PlayMusicStream(*mBgMusic);
+    }
+    
+    // ✅ SAVE SYSTEM: Check if save file exists untuk Continue button
+    mHasSaveFile = mSaveManager.HasSaveFile();
+    if (mHasSaveFile) {
+        std::cout << "💾 SAVE FILE DETECTED: Continue option available" << std::endl;
     }
     
     std::cout << "✅ ASSETS LOADED COMPLETELY!" << std::endl;
@@ -664,7 +853,8 @@ void Game::Draw() {
     // PHASE 1: 3D WORLD RENDER (Hanya saat Gameplay/Pause/Result)
     // ==============================================================================
     bool isGameplayActive = (mState == GameState::PLAYING || mState == GameState::PAUSED || 
-                             mState == GameState::GAME_OVER || mState == GameState::VICTORY);
+                             mState == GameState::GAME_OVER || mState == GameState::VICTORY ||
+                             (mState == GameState::SETTINGS && mPreviousState == GameState::PAUSED)); // ✅ FIX: Allow 3D render in Settings (Pause)
 
     if (isGameplayActive) {
         if (mPixelMode) BeginTextureMode(mTarget);
@@ -850,13 +1040,13 @@ void Game::Draw() {
     // --------------------------------------------------------------------------
     // 4. SETTINGS & CREDITS (Overlay)
     // --------------------------------------------------------------------------
-    else if (mState == GameState::SETTINGS) {
-        DrawRectangle(0, 0, mScreenWidth, mScreenHeight, (Color){0, 0, 0, 240});
-        DrawText("SETTINGS", 50, 50, 40, GOLD);
-        DrawText("Music Volume: 100%", 100, 150, 30, WHITE);
-        DrawText("SFX Volume: 100%", 100, 200, 30, WHITE);
-        DrawText("[ESC] BACK", 50, mScreenHeight - 50, 20, GRAY);
-    }
+// DISABLED:     else if (mState == GameState::SETTINGS) {
+//         DrawRectangle(0, 0, mScreenWidth, mScreenHeight, (Color){0, 0, 0, 240});
+//         DrawText("SETTINGS", 50, 50, 40, GOLD);
+//         DrawText("Music Volume: 100%", 100, 150, 30, WHITE);
+//         DrawText("SFX Volume: 100%", 100, 200, 30, WHITE);
+//         DrawText("[ESC] BACK", 50, mScreenHeight - 50, 20, GRAY);
+//     }
     else if (mState == GameState::CREDITS) {
         DrawRectangle(0, 0, mScreenWidth, mScreenHeight, (Color){0, 0, 0, 240});
         DrawText("CREDITS", 50, 50, 40, GOLD);
@@ -870,16 +1060,94 @@ void Game::Draw() {
     // --------------------------------------------------------------------------
     else if (mState == GameState::PLAYING) {
         mUI.DrawHUD(mPlayer, mWaveManager, (int)mEnemies.size(), mScreenWidth, mScreenHeight);
+        
+        // ✅ FEATURE 5: Damage Flash Overlay
+        if (mDamageFlashTimer > 0) {
+            int alpha = (int)(150 * (mDamageFlashTimer / 0.2f));
+            DrawRectangle(0, 0, mScreenWidth, mScreenHeight, 
+                         ColorAlpha(RED, alpha / 255.0f));
+        }
+        
+        // ✅ FEATURE 5: Kill Combo Display (TOP LEFT + ANIMATION)
+        if (mKillCombo >= 2) {
+            const char* comboText = TextFormat("%d COMBO!", mKillCombo);
+            
+            // Base font size = 30, Scaled by mKillComboScale
+            int fontSize = (int)(30 * mKillComboScale); 
+            
+            Color comboColor = (mKillCombo >= 10) ? GOLD : ((mKillCombo >= 5) ? ORANGE : YELLOW);
+            
+            // Position: Top Left (20, 120 - below HUD)
+            // Save & Restore matrix for scaling from center of text? 
+            // Simpler approach: Just draw with larger font size
+            
+            DrawText(comboText, 20, 120, fontSize, comboColor);
+            
+            // Draw Timer Bar below text
+            float timerWidth = 150.0f * (mKillComboTimer / 3.0f);
+            DrawRectangle(20, 160, (int)timerWidth, 5, RED);
+        }
     }
     else if (mState == GameState::PAUSED) {
         mUI.DrawHUD(mPlayer, mWaveManager, (int)mEnemies.size(), mScreenWidth, mScreenHeight);
-        mUI.DrawPause(mScreenWidth, mScreenHeight);
+        mUI.DrawPause(mScreenWidth, mScreenHeight, mPauseMenuSelection);
     }
+    // --------------------------------------------------------------------------
+    // 6. CREDITS
+    // --------------------------------------------------------------------------
+    else if (mState == GameState::CREDITS) {
+        mMenuManager.Draw(mScreenWidth, mScreenHeight, mMenuBg);
+    }
+    
+    // --------------------------------------------------------------------------
+    // 7. GAME OVER
+    // --------------------------------------------------------------------------
     else if (mState == GameState::GAME_OVER) {
-        mUI.DrawGameOver(mScreenWidth, mScreenHeight, mWaveManager.GetCurrentWave(), mPlayer.GetLevel());
+        mUI.DrawGameOver(mScreenWidth, mScreenHeight, 
+                        mWaveManager.GetCurrentWave(), 
+                        mPlayer.GetLevel());
+        
+        // ✅ FEATURE 4: Display cached high scores (loaded once on state entry)
+        mUI.DrawHighScores(mCachedHighScores, mScreenWidth, mScreenHeight);
     }
+    // --------------------------------------------------------------------------
+    // 4. SETTINGS MENU
+    // --------------------------------------------------------------------------
+    else if (mState == GameState::SETTINGS) {
+        // Draw background first
+        // ✅ FIX: Only draw Menu BG if coming from Main Menu
+        if (mPreviousState != GameState::PAUSED) {
+            mMenuManager.Draw(mScreenWidth, mScreenHeight, mMenuBg);
+        } else {
+             // Darken the background if in-game
+            DrawRectangle(0, 0, mScreenWidth, mScreenHeight, ColorAlpha(BLACK, 0.6f));
+        }
+        
+        // Draw settings UI
+        mUI.DrawSettings(mScreenWidth, mScreenHeight,
+                        mSettingsManager.GetMusicVolume(),
+                        mSettingsManager.GetSFXVolume(),
+                        mSettingsManager.IsPixelMode(),
+                        mSettingsManager.IsScreenShakeEnabled(),
+                        mSettingsSelection);
+    }
+    
+    // --------------------------------------------------------------------------
+    // 5. TUTORIAL SCREEN
+    // --------------------------------------------------------------------------
+    else if (mState == GameState::TUTORIAL) {
+        // Draw background
+        DrawRectangle(0, 0, mScreenWidth, mScreenHeight, BLACK);
+        mUI.DrawTutorial(mScreenWidth, mScreenHeight);
+    }
+    // --------------------------------------------------------------------------
+    // 8. VICTORY
+    // --------------------------------------------------------------------------
     else if (mState == GameState::VICTORY) {
         mUI.DrawVictory(mScreenWidth, mScreenHeight, mPlayer.GetLevel());
+        
+        // ✅ FEATURE 4: Display cached high scores (loaded once on state entry)
+        mUI.DrawHighScores(mCachedHighScores, mScreenWidth, mScreenHeight);
     }
 
     EndDrawing();
