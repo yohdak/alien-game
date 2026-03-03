@@ -19,6 +19,7 @@ public:
 
     // --- GETTERS & SETTERS ---
     Vector3 GetPosition() const { return position; }
+    void SetPosition(Vector3 pos) { position = pos; }
     float GetRadius() const { return radius; }
     bool IsActive() const { return active; }
     float GetHealth() const { return hp; }

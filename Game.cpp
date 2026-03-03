@@ -20,6 +20,8 @@ Game::Game(int width, int height)
     , mSplashTimer(0.0f)
     , mLoadingTimer(0.0f)
     , mScreenShakeIntensity(0.0f)
+    , mWaveSpawnTimer(0.0f)
+    , mLastKillTimer(0.0f)
     , mShootTimer(0.0f)
     , mWaveBonusClaimed(false)
     , mGameLoaded(false)      // Belum load aset berat
@@ -115,6 +117,9 @@ void Game::ResetGame() {
     mItemManager.Reset();
     mWaveBonusClaimed = false;
     mScreenShakeIntensity = 0.0f;
+    mWaveSpawnTimer = 0.0f;
+    mLastKillTimer = 0.0f;
+    mLevelManager.LoadLevelFromImage("assets/map_level1.png");
 }
 void Game::ProcessInput(float dt) {
     // -----------------------------------------------------------------------
@@ -433,19 +438,47 @@ void Game::Update(float dt) {
     // ==============================================================================
 
    // --- A. PLAYER MOVEMENT & MAP COLLISION ---
-    
-    // 1. Update Level Physics (Air/Portal)
-    // Pastikan mVelocity public di Player.h atau buat Getter/Setter
-    // Jika error, sementara comment dulu baris ini sampai Player.h disesuaikan
-    // mLevelManager.Update(dt, mPlayer.mPosition, mPlayer.mVelocity); 
 
     Vector3 oldPos = mPlayer.GetPosition();
     mPlayer.Update(dt); // Player gerak dulu
     
-    // 2. Cek Tabrakan Tembok (LevelManager)
-    // Logika sliding sederhana: kalau nabrak, kembalikan ke posisi sebelumnya
-    if (mLevelManager.CheckWallCollision(mPlayer.GetPosition(), 0.5f)) {
-        mPlayer.SetPosition(oldPos); 
+    // Water Slowdown: jika player di tile air, kurangi jarak gerak
+    int tileAtPlayer = mLevelManager.GetTileAt(mPlayer.GetPosition());
+    if (tileAtPlayer == 2) {
+        // Lerp balik 50% ke posisi lama (simulasi drag air)
+        Vector3 curPos = mPlayer.GetPosition();
+        Vector3 slowPos = {
+            curPos.x * 0.5f + oldPos.x * 0.5f,
+            curPos.y,
+            curPos.z * 0.5f + oldPos.z * 0.5f
+        };
+        mPlayer.SetPosition(slowPos);
+    }
+    
+    // Sliding Wall Collision (Player)
+    Vector3 newPos = mPlayer.GetPosition();
+    if (mLevelManager.CheckWallCollision(newPos, 0.5f)) {
+        // Coba gerak X saja
+        Vector3 tryX = { newPos.x, oldPos.y, oldPos.z };
+        if (!mLevelManager.CheckWallCollision(tryX, 0.5f)) {
+            mPlayer.SetPosition(tryX);
+        } else {
+            // Coba gerak Z saja
+            Vector3 tryZ = { oldPos.x, oldPos.y, newPos.z };
+            if (!mLevelManager.CheckWallCollision(tryZ, 0.5f)) {
+                mPlayer.SetPosition(tryZ);
+            } else {
+                // Dua-duanya tabrakan, berhenti total
+                mPlayer.SetPosition(oldPos);
+            }
+        }
+    }
+    
+    // Portal check
+    {
+        Vector3 pPos = mPlayer.GetPosition();
+        Vector3 dummy = {0,0,0};
+        mLevelManager.Update(dt, pPos, dummy);
     }
 
     // --- B. MANAGERS UPDATE ---
@@ -504,10 +537,12 @@ void Game::Update(float dt) {
     mCamera.target.y = 0.0f;
 
     Vector3 finalTarget = Vector3Add(mCamera.target, shakeOffset);
-    mCamera.position = Vector3Add(finalTarget, (Vector3){ 0.0f, 35.0f, 25.0f });
+    mCamera.position = Vector3Add(finalTarget, (Vector3){ 17.68f, 35.0f, 17.68f }); // Rotasi 45°
     mCamera.target = finalTarget;
 
     // --- E. WAVE MANAGER ---
+    mWaveSpawnTimer += dt;  // Tick wave timer
+    mLastKillTimer += dt;   // Tick last kill timer (untuk arrow UI)
     mWaveManager.Update(dt, mPlayer.GetLevel(), (int)mEnemies.size());
 
     if (mWaveManager.ShouldSpawn()) {
@@ -523,6 +558,7 @@ void Game::Update(float dt) {
             mPlayer.AddXP(bonusXP);
             mParticles.SpawnExplosion(playerPos, GOLD, 50);
             mWaveBonusClaimed = true;
+            mWaveSpawnTimer = 0.0f;  // Reset timer for next wave
             
             // ✅ SAVE: Auto-save on wave completion
             mSaveManager.SavePlayerProgress(mPlayer, mWaveManager.GetCurrentWave());
@@ -546,7 +582,26 @@ void Game::Update(float dt) {
     for (auto& e : mEnemies) {
         if (!e->IsActive()) continue;
 
+        Vector3 enemyOldPos = e->GetPosition();
         e->Update(dt, playerPos);
+        
+        // Sliding wall collision for enemies (yellow walls only)
+        Vector3 enemyNewPos = e->GetPosition();
+        if (mLevelManager.CheckEnemyWallCollision(enemyNewPos, e->GetRadius())) {
+            // Coba gerak X saja
+            Vector3 tryX = { enemyNewPos.x, enemyOldPos.y, enemyOldPos.z };
+            if (!mLevelManager.CheckEnemyWallCollision(tryX, e->GetRadius())) {
+                e->SetPosition(tryX);
+            } else {
+                // Coba gerak Z saja
+                Vector3 tryZ = { enemyOldPos.x, enemyOldPos.y, enemyNewPos.z };
+                if (!mLevelManager.CheckEnemyWallCollision(tryZ, e->GetRadius())) {
+                    e->SetPosition(tryZ);
+                } else {
+                    e->SetPosition(enemyOldPos);
+                }
+            }
+        }
 
         // Boss Minion Spawn
         BossEnemy* boss = dynamic_cast<BossEnemy*>(e.get());
@@ -675,6 +730,7 @@ void Game::Update(float dt) {
                     mKillCombo++;
                     mKillComboTimer = 3.0f; // 3 seconds to continue combo
                     mKillComboScale = 2.0f; // 💥 POP EFFECT!
+                    mLastKillTimer = 0.0f;  // Reset last kill timer
                     
                     Color color = (e->GetTier() == 1) ? RED : ((e->GetTier() == 2) ? BLUE : GOLD);
                     mParticles.SpawnExplosion(e->GetPosition(), color, 20);
@@ -810,11 +866,7 @@ void Game::LoadGameplayContent() {
     SetShaderValue(mGroundShader, mLightPosGroundLoc, &lightPos, SHADER_UNIFORM_VEC3);
     SetShaderValue(mSlimeShader, mLightPosSlimeLoc, &lightPos, SHADER_UNIFORM_VEC3);
 
-    // 3. Setup Materials
-    if (mAssets.GetModel("ground").meshCount > 0) {
-        mAssets.GetModel("ground").materials[0].shader = mGroundShader;
-        mAssets.GetModel("ground").materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = mAssets.GetTexture("ground");
-    }
+    // 3. Setup Materials (ground now handled by LevelManager, no shader needed)
     if (mAssets.GetModel("slime").meshCount > 0) {
         mAssets.GetModel("slime").materials[0].shader = mSlimeShader;
     }
@@ -845,6 +897,10 @@ void Game::LoadGameplayContent() {
         std::cout << "💾 SAVE FILE DETECTED: Continue option available" << std::endl;
     }
     
+    // 6. Load Level Map (PNG-based)
+    mLevelManager.LoadLevelFromImage("assets/map_level1.png");
+    mLevelManager.SetCamera(&mCamera);
+    
     std::cout << "✅ ASSETS LOADED COMPLETELY!" << std::endl;
 }
 void Game::Draw() {
@@ -866,13 +922,7 @@ void Game::Draw() {
 
                 mLevelManager.Draw();
                 
-                // 1. Ground
-                if (mAssets.GetModel("ground").meshCount > 0) {
-                    DrawModelEx(mAssets.GetModel("ground"), (Vector3){0, -0.05f, 0}, 
-                               (Vector3){0,1,0}, 0.0f, (Vector3){1.0f, 1.0f, 1.0f}, WHITE);
-                } else {
-                    DrawGrid(100, 1.0f);
-                }
+                // 1. Ground (handled by LevelManager)
 
                 // 2. Player (Selalu gambar kecuali loading)
                 mPlayer.Draw(mAssets.GetModel("soto"), mCamera, mShadowTexture);
@@ -1061,6 +1111,45 @@ void Game::Draw() {
     else if (mState == GameState::PLAYING) {
         mUI.DrawHUD(mPlayer, mWaveManager, (int)mEnemies.size(), mScreenWidth, mScreenHeight);
         
+        // 🔺 ARROW INDICATORS: Panah di sekitar player menunjuk arah enemy
+        {
+            int activeCount = 0;
+            for (auto& e : mEnemies) {
+                if (e->IsActive()) activeCount++;
+            }
+            
+            // Tampil jika udah lama gak kill (7 detik) DAN monster sisa 3 atau kurang
+            if (activeCount > 0 && activeCount <= 3 && mLastKillTimer > 7.0f) {
+                Vector3 playerPos = mPlayer.GetPosition();
+                Vector2 playerScreen = GetWorldToScreen(playerPos, mCamera);
+                float orbitRadius = 60.0f;  // Jarak panah dari player
+                float arrowSize = 14.0f;
+                
+                for (auto& e : mEnemies) {
+                    if (!e->IsActive()) continue;
+                    
+                    // Hitung arah dari player ke enemy di screen space
+                    Vector3 enemyPos = e->GetPosition();
+                    // Konversi ke screen angle (Z world = Y screen, terbalik)
+                    Vector2 enemyScreen = GetWorldToScreen(enemyPos, mCamera);
+                    float screenDx = enemyScreen.x - playerScreen.x;
+                    float screenDy = enemyScreen.y - playerScreen.y;
+                    float angle = atan2f(screenDy, screenDx);
+                    
+                    // Posisi panah di orbit sekitar player
+                    float arrowX = playerScreen.x + cosf(angle) * orbitRadius;
+                    float arrowY = playerScreen.y + sinf(angle) * orbitRadius;
+                    
+                    // Gambar segitiga panah
+                    Vector2 p1 = { arrowX + cosf(angle) * arrowSize, arrowY + sinf(angle) * arrowSize };
+                    Vector2 p2 = { arrowX + cosf(angle + 2.5f) * arrowSize * 0.7f, arrowY + sinf(angle + 2.5f) * arrowSize * 0.7f };
+                    Vector2 p3 = { arrowX + cosf(angle - 2.5f) * arrowSize * 0.7f, arrowY + sinf(angle - 2.5f) * arrowSize * 0.7f };
+                    
+                    DrawTriangle(p1, p3, p2, RED);
+                }
+            }
+        }
+        
         // ✅ FEATURE 5: Damage Flash Overlay
         if (mDamageFlashTimer > 0) {
             int alpha = (int)(150 * (mDamageFlashTimer / 0.2f));
@@ -1160,10 +1249,19 @@ void Game::SpawnEnemy(EnemySpawnEntry entry, Vector3 pos) {
             mParticles.SpawnExplosion(pos, RED, 150);
             mScreenShakeIntensity = 2.0f;
         } else {
-            float angle = GetRandomFloat(0, 360) * DEG2RAD;
-            float dist = GetRandomFloat(30, 50);
+            // Spawn di posisi random sekitar player, pastikan tidak di wall
             Vector3 playerPos = mPlayer.GetPosition();
-            pos = Vector3Add(playerPos, { cosf(angle) * dist, 0, sinf(angle) * dist });
+            for (int attempt = 0; attempt < 20; attempt++) {
+                float angle = GetRandomFloat(0, 360) * DEG2RAD;
+                float dist = GetRandomFloat(30, 50);
+                pos = Vector3Add(playerPos, { cosf(angle) * dist, 0, sinf(angle) * dist });
+                
+                // Cek pakai collision check langsung (lebih reliable)
+                if (!mLevelManager.CheckWallCollision(pos, 1.0f) &&
+                    !mLevelManager.CheckEnemyWallCollision(pos, 1.0f)) {
+                    break; // Posisi valid!
+                }
+            }
         }
     }
 

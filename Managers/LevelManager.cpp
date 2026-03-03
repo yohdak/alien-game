@@ -1,7 +1,7 @@
 #include "LevelManager.h"
 #include <iostream>
 
-LevelManager::LevelManager() : mMapWidth(0), mMapHeight(0), mTileSize(2.0f) {
+LevelManager::LevelManager() : mMapWidth(0), mMapHeight(0), mTileSize(2.0f), mCameraRef(nullptr) {
     // Generate simple cubes for visualization placeholders
     Mesh cube = GenMeshCube(mTileSize, mTileSize * 2.0f, mTileSize);
     mWallModel = LoadModelFromMesh(cube);
@@ -9,10 +9,22 @@ LevelManager::LevelManager() : mMapWidth(0), mMapHeight(0), mTileSize(2.0f) {
     Mesh crate = GenMeshCube(mTileSize, mTileSize, mTileSize);
     mBreakableModel = LoadModelFromMesh(crate);
     mBreakableModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].color = RED;
+    
+    // Ground tile: flat plane
+    Mesh groundMesh = GenMeshPlane(mTileSize, mTileSize, 1, 1);
+    mGroundTileModel = LoadModelFromMesh(groundMesh);
+}
+
+void LevelManager::SetCamera(Camera3D* cam) {
+    mCameraRef = cam;
 }
 
 void LevelManager::LoadLevelFromImage(const char* imagePath) {
     Image mapImg = LoadImage(imagePath);
+    if (mapImg.data == nullptr) {
+        std::cout << "❌ FAILED TO LOAD MAP: " << imagePath << std::endl;
+        return;
+    }
     mMapWidth = mapImg.width;
     mMapHeight = mapImg.height;
     
@@ -28,9 +40,13 @@ void LevelManager::LoadLevelFromImage(const char* imagePath) {
             Color c = pixels[y * mMapWidth + x];
             Vector3 pos = { x * mTileSize, 0.0f, y * mTileSize };
 
-            // 1. PUTIH - Wall Physics
+            // 1. PUTIH - Wall (player only)
             if (c.r == 255 && c.g == 255 && c.b == 255) {
-                mCollisionGrid[y * mMapWidth + x] = 1; // ID 1 = Tembok
+                mCollisionGrid[y * mMapWidth + x] = 1; // ID 1 = Tembok player-only
+            }
+            // 2. KUNING - Wall (player + enemy)
+            else if (c.r == 255 && c.g == 255 && c.b == 0) {
+                mCollisionGrid[y * mMapWidth + x] = 3; // ID 3 = Tembok player+enemy
             }
             // 2. BIRU - Water Physics
             else if (c.b == 255 && c.r == 0 && c.g == 0) {
@@ -51,8 +67,9 @@ void LevelManager::LoadLevelFromImage(const char* imagePath) {
                     {pos.x - 1, 0, pos.z - 1},
                     {pos.x + 1, 2, pos.z + 1}
                 };
-                mPortals.push_back({pos, "next_level.png", box}); // Logic nama map nanti dikembangkan
+                mPortals.push_back({pos, "next_level.png", box});
             }
+            // else: Hitam (0,0,0) = Ground, tileID tetap 0
         }
     }
 
@@ -62,22 +79,6 @@ void LevelManager::LoadLevelFromImage(const char* imagePath) {
 }
 
 void LevelManager::Update(float dt, Vector3& playerPos, Vector3& playerVel) {
-    // Konversi posisi player ke Grid Coordinate
-    int gx = (int)((playerPos.x + mTileSize/2) / mTileSize);
-    int gy = (int)((playerPos.z + mTileSize/2) / mTileSize);
-
-    // Bounds check
-    if (gx >= 0 && gx < mMapWidth && gy >= 0 && gy < mMapHeight) {
-        int tileID = mCollisionGrid[gy * mMapWidth + gx];
-
-        // --- LOGIC BIRU (AIR) ---
-        if (tileID == 2) {
-            // Physics air: Lambatkan gerakan & sedikit buoyancy
-            playerVel.x *= 0.90f; // Drag tinggi
-            playerVel.z *= 0.90f; 
-        }
-    }
-    
     // --- LOGIC HIJAU (PORTAL) ---
     for (auto& p : mPortals) {
         if (CheckCollisionBoxSphere(p.box, playerPos, 0.5f)) {
@@ -91,12 +92,34 @@ bool LevelManager::CheckWallCollision(Vector3 pos, float radius) {
     int gx = (int)((pos.x + mTileSize/2) / mTileSize);
     int gy = (int)((pos.z + mTileSize/2) / mTileSize);
 
-    // Cek 3x3 area sekitar player untuk tabrakan dinding statis
     for (int y = gy - 1; y <= gy + 1; y++) {
         for (int x = gx - 1; x <= gx + 1; x++) {
             if (x >= 0 && x < mMapWidth && y >= 0 && y < mMapHeight) {
-                // Jika Grid bernilai 1 (Tembok) atau tile Merah yg belum hancur
-                if (mCollisionGrid[y * mMapWidth + x] == 1) {
+                int tid = mCollisionGrid[y * mMapWidth + x];
+                // Player collides with both wall types (1 and 3)
+                if (tid == 1 || tid == 3) {
+                    Vector3 tilePos = { x * mTileSize, 0, y * mTileSize };
+                    BoundingBox tileBox = {
+                        {tilePos.x - mTileSize/2, 0, tilePos.z - mTileSize/2},
+                        {tilePos.x + mTileSize/2, 4, tilePos.z + mTileSize/2}
+                    };
+                    if (CheckCollisionBoxSphere(tileBox, pos, radius)) return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
+bool LevelManager::CheckEnemyWallCollision(Vector3 pos, float radius) {
+    int gx = (int)((pos.x + mTileSize/2) / mTileSize);
+    int gy = (int)((pos.z + mTileSize/2) / mTileSize);
+
+    for (int y = gy - 1; y <= gy + 1; y++) {
+        for (int x = gx - 1; x <= gx + 1; x++) {
+            if (x >= 0 && x < mMapWidth && y >= 0 && y < mMapHeight) {
+                // Enemy only collides with yellow walls (ID 3)
+                if (mCollisionGrid[y * mMapWidth + x] == 3) {
                     Vector3 tilePos = { x * mTileSize, 0, y * mTileSize };
                     BoundingBox tileBox = {
                         {tilePos.x - mTileSize/2, 0, tilePos.z - mTileSize/2},
@@ -114,9 +137,8 @@ bool LevelManager::CheckBreakableCollision(Vector3 pos, float radius, float dama
     for (auto& b : mBreakables) {
         if (!b.active) continue;
         if (CheckCollisionBoxSphere(b.box, pos, radius)) {
-            b.active = false; // Hancur instan (bisa diubah jadi HP)
+            b.active = false;
             
-            // Update Grid jadi 0 (Jalan)
             int gx = (int)(b.position.x / mTileSize);
             int gy = (int)(b.position.z / mTileSize);
             if (gx >= 0 && gx < mMapWidth) mCollisionGrid[gy * mMapWidth + gx] = 0;
@@ -127,26 +149,71 @@ bool LevelManager::CheckBreakableCollision(Vector3 pos, float radius, float dama
     return false;
 }
 
-void LevelManager::Draw() {
-    // Optimasi: Hanya gambar tile di sekitar kamera (Culling sederhana)
-    // Untuk sekarang gambar semua loop sederhana
+int LevelManager::GetTileAt(Vector3 worldPos) const {
+    int gx = (int)((worldPos.x + mTileSize/2) / mTileSize);
+    int gy = (int)((worldPos.z + mTileSize/2) / mTileSize);
     
-    for (int y = 0; y < mMapHeight; y++) {
-        for (int x = 0; x < mMapWidth; x++) {
+    if (gx >= 0 && gx < mMapWidth && gy >= 0 && gy < mMapHeight) {
+        return mCollisionGrid[gy * mMapWidth + gx];
+    }
+    return -1; // Out of bounds
+}
+
+void LevelManager::Draw() {
+    if (mMapWidth == 0 || mMapHeight == 0) return;
+    
+    // Range-based culling: hanya render tile dekat kamera
+    int camTileX = 0, camTileZ = 0;
+    int renderRange = 35; // tiles radius
+    
+    if (mCameraRef) {
+        camTileX = (int)(mCameraRef->target.x / mTileSize);
+        camTileZ = (int)(mCameraRef->target.z / mTileSize);
+    }
+    
+    int startX = (mCameraRef) ? (camTileX - renderRange) : 0;
+    int endX   = (mCameraRef) ? (camTileX + renderRange) : mMapWidth;
+    int startY = (mCameraRef) ? (camTileZ - renderRange) : 0;
+    int endY   = (mCameraRef) ? (camTileZ + renderRange) : mMapHeight;
+    
+    // Clamp to map bounds
+    if (startX < 0) startX = 0;
+    if (startY < 0) startY = 0;
+    if (endX > mMapWidth) endX = mMapWidth;
+    if (endY > mMapHeight) endY = mMapHeight;
+    
+    for (int y = startY; y < endY; y++) {
+        for (int x = startX; x < endX; x++) {
             int index = y * mMapWidth + x;
             int tileID = mCollisionGrid[index];
+            
+            // Ground tile (semua non-wall tile dapat lantai)
+            if (tileID != 1 && tileID != 3) {
+                Vector3 groundPos = { x * mTileSize, -0.01f, y * mTileSize };
+                DrawModel(mGroundTileModel, groundPos, 1.0f, (Color){60, 60, 65, 255});
+            }
+
             Vector3 pos = { x * mTileSize, 1.0f, y * mTileSize };
 
-            // Draw Wall (White)
+            // Draw Wall - White (player only)
             if (tileID == 1) {
-                // Cek apakah ini breakable wall? Kalau bukan, gambar tembok biasa
                 bool isBreakable = false;
-                // (Cara malas: cek list breakable, idealnya pake ID beda di grid)
+                for (auto& b : mBreakables) {
+                    if (b.active && (int)(b.position.x / mTileSize) == x && (int)(b.position.z / mTileSize) == y) {
+                        isBreakable = true;
+                        break;
+                    }
+                }
                 if (!isBreakable) DrawModel(mWallModel, pos, 1.0f, WHITE);
+            }
+            // Draw Wall - Yellow (player + enemy)
+            else if (tileID == 3) {
+                Vector3 yellowPos = { x * mTileSize, mTileSize, y * mTileSize };
+                DrawCube(yellowPos, mTileSize, mTileSize * 2.0f, mTileSize, YELLOW);
             }
             // Draw Water (Blue)
             else if (tileID == 2) {
-                DrawCube(pos, mTileSize, 0.1f, mTileSize, (Color){0, 121, 241, 150});
+                DrawCube({x * mTileSize, 0.05f, y * mTileSize}, mTileSize, 0.1f, mTileSize, (Color){0, 100, 220, 150});
             }
         }
     }

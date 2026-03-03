@@ -18,7 +18,7 @@ Player::Player() {
 }
 
 void Player::Reset() {
-    position = { 0, 0.5f, 0 };
+    position = { 64.0f, 0.5f, 64.0f }; // Center of 64x64 map (tileSize=2)
     rotationY = 0.0f;
     walkTimer = 0.0f;
     shootTimer = 0.0f;
@@ -129,10 +129,12 @@ void Player::Update(float dt) {
 
     // Normal Movement Logic
     Vector3 input = { 0, 0, 0 };
-    if (IsKeyDown(KEY_W)) input.z -= 1;
-    if (IsKeyDown(KEY_S)) input.z += 1;
-    if (IsKeyDown(KEY_A)) input.x -= 1;
-    if (IsKeyDown(KEY_D)) input.x += 1;
+    // Input diputar 45° untuk match camera rotation
+    // cos(45°) = sin(45°) ≈ 0.7071
+    if (IsKeyDown(KEY_W)) { input.x -= 0.7071f; input.z -= 0.7071f; }
+    if (IsKeyDown(KEY_S)) { input.x += 0.7071f; input.z += 0.7071f; }
+    if (IsKeyDown(KEY_A)) { input.x -= 0.7071f; input.z += 0.7071f; }
+    if (IsKeyDown(KEY_D)) { input.x += 0.7071f; input.z -= 0.7071f; }
 
     if (Vector3Length(input) > 0) {
         input = Vector3Normalize(input);

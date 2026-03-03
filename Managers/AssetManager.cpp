@@ -37,11 +37,9 @@ void AssetManager::LoadAll() {
     // 2. PROCEDURAL & DIRECT LOAD
     mModels["cube"]        = LoadModelFromMesh(GenMeshCube(1.0f, 1.0f, 1.0f));
     mModels["slime"]       = LoadModelFromMesh(GenMeshSphere(1.0f, 32, 32));
-    mModels["ground"]      = LoadModelSafe("Resources/map_col_2.glb", GenMeshPlane(100.0f, 100.0f, 1, 1));
     mModels["shadow_plane"] = LoadModelFromMesh(GenMeshPlane(1.0f, 1.0f, 1, 1));
 
-    // 3. TEXTURES
-    mTextures["ground"]    = LoadTextureSafe("ground.png");
+    // 3. TEXTURES (ground texture no longer needed - handled by LevelManager)
 
     // 4. AUDIO - Load semua music dari Resources/Music folder
     std::vector<std::string> musicFiles = {

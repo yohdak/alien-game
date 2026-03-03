@@ -137,6 +137,8 @@ private:
 
     // --- GAMEPLAY VARIABLES ---
     float mScreenShakeIntensity;
+    float mWaveSpawnTimer;  // Timer sejak wave dimulai
+    float mLastKillTimer;   // Timer sejak terakhir kill enemy (untuk arrow UI)
     float mShootTimer;
     bool mWaveBonusClaimed;
 
